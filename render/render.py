@@ -1,9 +1,14 @@
 import cv2, numpy as np
-from PIL import Image, ImageDraw, ImageFont
+# from PIL import Image, ImageDraw, ImageFont
+from main import app
 
-font_style = ImageFont.truetype("./assets/SimHei.ttf", 12, encoding="utf-8")
+import utils.bezier_calc as bezier_calc
+import utils.distance_calc as distance_calc
+import dataprocess.prepare as prepare
 
-def renderRRectLabel_batch(frame, bbox_records, label_width = 68, label_height = 20):
+# font_style = ImageFont.truetype("./assets/SimHei.ttf", 12, encoding="utf-8")
+
+def renderRRectLabel_batch(frame, bbox_records, color = (130, 0, 168), font_color = (255, 255, 255), label_width = 68, label_height = 20):
     """
     在指定的bbox位置上绘制多个圆角矩形标签框 绘制在对bbox的顶部
     Args:
@@ -20,13 +25,10 @@ def renderRRectLabel_batch(frame, bbox_records, label_width = 68, label_height =
         l_y1 = int(bbox_record.ycenter - bbox_record.height / 2 - label_height / 2 - 12)
         top_left = (l_x1, l_y1)
         bottom_right = (l_x1 + label_width, l_y1 + label_height)
-        render_rects_info.append((top_left, bottom_right, bbox_record.cls+":"+bbox_record.oid))
+        render_rects_info.append((top_left, bottom_right, bbox_record.info))
     
-    frame = renderRRect_batch(frame, render_rects_info, 2, (130,0,168), -1, cv2.LINE_AA)
-    frame = renderLabel_batch(frame, render_rects_info)
-
-    # renderRRect(frame, top_left, bottom_right, 2, (130,0,75), -1, cv2.LINE_AA)
-    # frame = renderLabel(frame, (top_left[0] + label_width // 2, top_left[1] + label_height // 2), label_text=bbox_record.cls+":"+bbox_record.oid)
+    frame = renderRRect_batch(frame, render_rects_info, 2, color, -1, cv2.LINE_AA)
+    frame = renderLabel_batch(frame, render_rects_info, font_color=font_color)
 
     return frame
 
@@ -55,11 +57,13 @@ def renderLabel_batch(frame, rects_info, font_size = 12, font_color = (255,255,2
     Return:
         frame: 添加了label之后视频帧
     """
-    p_frame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    # !!! only use ASCII code to get a fast speed.
+    # p_frame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
     for rect in rects_info:
         label_center = (rect[0][0] + (rect[1][0] -  rect[0][0]) // 2, rect[0][1] + (rect[1][1] -  rect[0][1]) // 2)
-        renderLabel(p_frame, label_center, rect[2], font_size, font_color)
-    return cv2.cvtColor(np.asarray(p_frame), cv2.COLOR_RGB2BGR)
+        renderLabel(frame, label_center, rect[2], font_size, font_color)
+    return frame
+    # return cv2.cvtColor(np.asarray(p_frame), cv2.COLOR_RGB2BGR)
 
 def renderRRect(frame, top_left, bottom_right, radious, color, thickness, linetype):
     """
@@ -97,14 +101,24 @@ def renderLabel(frame, label_center, label_text, font_size = 12, font_color = (2
         label_center: 标签的中心点
         label_text: 标签文本
     """
-    assert isinstance(frame, Image.Image)
-    p_draw = ImageDraw.Draw(frame)
-    w,h = font_style.getsize(label_text)
-    p_draw.text((label_center[0] - w // 2, label_center[1] - h // 2), label_text, font_color, font_style)
+    # !!! it has to use the PIL to display the unicode chracters.
+    # assert isinstance(frame, Image.Image)
+    # p_draw = ImageDraw.Draw(frame)
+    # w,h = font_style.getsize(label_text)
+    # p_draw.text((label_center[0] - w // 2, label_center[1] - h // 2), label_text, font_color, font_style)
+    
+    cv2.putText(frame, 
+            label_text,
+            (label_center[0] - len(label_text) // 2 * 6, label_center[1] + 6),  # fix: align
+            fontFace=cv2.FONT_HERSHEY_PLAIN,
+            fontScale=1,
+            color=font_color, 
+            thickness=1, 
+            lineType=cv2.LINE_AA)
 
 def renderTeamShape(frame, convex_points, color, thickness = 1, linetype= cv2.LINE_AA):
     """
-    绘制阵型
+    绘制阵型 包括了阵型的凸包和队员的下划线
     Args:
         frame: 图像帧
         convex_points: 凸多边形的顶点
@@ -112,10 +126,63 @@ def renderTeamShape(frame, convex_points, color, thickness = 1, linetype= cv2.LI
         thickness: 线的宽度
         linetype: 线的类型
     """
+    # convexhull
     if len(convex_points) == 0: return frame
     edges = []
     for point in convex_points:
         edges.append([point.xcenter, point.ycenter + point.height // 2])
     edges = np.asarray([edges], dtype=np.int32)
     cv2.polylines(frame, edges, True, color, thickness=thickness, lineType=linetype)
+
+    # footline
+    footLine = []
+    for point in convex_points:
+        line_points = [[point.xcenter - point.width // 2, point.ycenter + point.height // 2], [point.xcenter + point.width // 2, point.ycenter + point.height // 2]]
+        footLine.append(line_points)
+    footLine = np.asarray(footLine, dtype=np.int32)
+    cv2.polylines(frame, footLine, False, color, thickness = thickness * 4, lineType=linetype)
+
+    return frame
+
+def renderDistance_batch(frame, source, target_bboxes, color, thickness = 1, linetype= cv2.LINE_AA):
+    """
+    绘制某个目标到另外一个(组)目标之间的连线 以及距离标注(像素)
+    Args:
+        frame: 帧
+        source: 源目标框
+        target_bboxes: target_bboxes 需要连接的目标框
+        color: 区分的颜色
+        thickness: 线的厚度
+        linetype: 线的类型
+    """
+    dist_label_bboxes = []
+    for box in target_bboxes:
+        if source.oid == box.oid:
+            continue
+        points = bezier_calc.generate_bezier_points(
+            [source.xcenter, source.ycenter - source.height // 2], 
+            [(source.xcenter + box.xcenter) / 2, (source.ycenter + box.ycenter) / 2 - 120],
+            [box.xcenter, box.ycenter - box.height // 2], 
+            int(abs(box.xcenter - source.xcenter)) // 2,
+        )
+        if len(points) < 1: continue
+        fake_bbox = prepare.BBoxRecord(
+                "-",
+                "-",
+                points[len(points) // 2][0],
+                points[len(points) // 2][1],
+                0,
+                0
+            )
+        fake_bbox.info = str(int(distance_calc.calc_distance_in_pixel((source.xcenter, source.ycenter), (box.xcenter, box.ycenter)))) + " Pixel"
+        dist_label_bboxes.append(
+            fake_bbox
+        )
+        dash_line_points = []
+        for i in range(len(points)):
+            if i % 5 == 4:
+                dash_line_points.append([points[i - 1], points[i]])
+        dash_line_points = np.asarray(dash_line_points, dtype=np.int32)
+        cv2.polylines(frame, dash_line_points, False, color, thickness = thickness * 2, lineType = linetype)
+    frame = renderRRectLabel_batch(frame, dist_label_bboxes, color=(127,127,127), font_color=(255,255,255),label_width=160, label_height = 16)
     return frame

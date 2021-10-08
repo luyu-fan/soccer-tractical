@@ -15,6 +15,7 @@ class BBoxRecord:
         self.ycenter = ycenter
         self.width = width
         self.height = height
+        self.info = str(self.cls) + ":" + str(self.oid)
     
     def __str__(self) -> str:
         return "[cls:%s, oid:%s, xcenter:%s, ycenter:%s, width:%s, height:%s]".format(str(self.cls), str(self.oid), str(self.xcenter), str(self.ycenter), str(self.width), str(self.height))
