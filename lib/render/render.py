@@ -1,4 +1,4 @@
-import cv2, numpy as np
+import cv2, numpy as np, random
 # from PIL import Image, ImageDraw, ImageFont
 
 from ..utils import bezier_calc as bezier_calc
@@ -184,4 +184,17 @@ def renderDistance_batch(frame, source, target_bboxes, color, thickness = 1, lin
         dash_line_points = np.asarray(dash_line_points, dtype=np.int32)
         cv2.polylines(frame, dash_line_points, False, color, thickness = thickness * 2, lineType = linetype)
     frame = renderRRectLabel_batch(frame, dist_label_bboxes, color=(127,127,127), font_color=(255,255,255),label_width=160, label_height = 16)
+    return frame
+
+def renderBbox_batch(frame, bbox_records):
+    """
+    绘制对象的bbox
+    """
+    for bbox in bbox_records:
+        x1 = int(bbox.xcenter - bbox.width / 2)
+        y1 = int(bbox.ycenter - bbox.height / 2)
+        x2 = int(bbox.xcenter + bbox.width / 2)
+        y2 = int(bbox.ycenter + bbox.height / 2)
+        color = (242, 241, 46)
+        cv2.rectangle(frame, (x1, y1),  (x2, y2), color = color, thickness=1, lineType=cv2.LINE_AA)
     return frame
