@@ -2,7 +2,7 @@
 根据bbox进行一些计算
 """
 
-from utils.distance_calc import calc_distance_in_pixel
+from ..utils.distance_calc import calc_distance_in_pixel
 
 def find_surroundings(target, bboxes, surrounding_min_dist_thres = 0, surrounding_max_dist_thres = 200):
     """

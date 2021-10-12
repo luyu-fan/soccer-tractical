@@ -2,7 +2,8 @@ import os,math
 
 from . import check_exists, get_relative_data_path
 from .video2frames import check_frames
-from utils.distance_calc import calc_distance_in_pixel
+from ..utils.distance_calc import calc_distance_in_pixel
+# from lib.utils.distance_calc import calc_distance_in_pixel
 
 class BBoxRecord:
     """

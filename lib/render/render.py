@@ -1,9 +1,9 @@
 import cv2, numpy as np
 # from PIL import Image, ImageDraw, ImageFont
 
-import utils.bezier_calc as bezier_calc
-import utils.distance_calc as distance_calc
-import dataprocess.prepare as prepare
+from ..utils import bezier_calc as bezier_calc
+from ..utils import distance_calc as distance_calc
+from ..dataprocess import prepare as prepare
 
 # font_style = ImageFont.truetype("./assets/SimHei.ttf", 12, encoding="utf-8")
 
