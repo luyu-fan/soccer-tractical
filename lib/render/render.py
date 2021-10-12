@@ -1,6 +1,5 @@
 import cv2, numpy as np
 # from PIL import Image, ImageDraw, ImageFont
-from main import app
 
 import utils.bezier_calc as bezier_calc
 import utils.distance_calc as distance_calc
