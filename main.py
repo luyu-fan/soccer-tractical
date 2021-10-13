@@ -104,6 +104,31 @@ class AnaVideoMete:
             # print("==>", frame_record["ball"].xcenter, frame_record["ball"].ycenter)
             # 1. 将识别到的足球给绘制出来. 标明位置
             frame = render.renderRRectLabel_batch(frame, [ball], color=(36,36,36))
+            # 5. 在ttl帧数窗口内探测下一个kicker
+            if self.probe_kicker_up_frame_num > self.frame_num:
+                for bbox in frame_record["bbox"]:
+                    if (self.probe_kicker_oid == bbox.oid and self.probe_kicker_cls == bbox.cls):
+                        frame = render.renderRRectLabel_batch(frame, [bbox], color=(0, 0, 255), font_color=(0, 0, 0), label_width=96, label_height=30)
+                        break
+            else:
+                frame_probe_num = self.frame_num + 1
+                probe_ttl = self.PROBE_TTL
+                while probe_ttl > 0 and (frame_probe_num in self.labels_dict.keys()):
+                    probe_kicker = self.labels_dict[frame_probe_num]["kicker"]
+                    if probe_kicker is not None and cur_kicker is None:
+                        self.probe_kicker_up_frame_num = frame_probe_num
+                        self.probe_kicker_cls = probe_kicker.cls
+                        self.probe_kicker_oid = probe_kicker.oid
+                        break
+                    # 这里只是为了修复自我标注时相同的id 如果采用检测的结果就不会有这种问题 此时所有的id都是唯一的
+                    if probe_kicker is not None and (probe_kicker.oid != cur_kicker.oid or (probe_kicker.oid == cur_kicker.oid and probe_kicker.cls != cur_kicker.cls)):
+                        self.probe_kicker_up_frame_num = frame_probe_num
+                        self.probe_kicker_cls = probe_kicker.cls
+                        self.probe_kicker_oid = probe_kicker.oid
+                        break
+                    frame_probe_num += 1
+                    probe_ttl -= 1
+
             if cur_kicker is not None:
                 # 3. 将当前帧kicker的周围按照范围将所有的对象检测出来 绘制战术进攻阵型或者防守阵型 显然这里速度很慢 需要批处理 可以看作是一个凸包
                 surroundings = interaction.find_surroundings(cur_kicker, frame_record["bbox"], surrounding_max_dist_thres=self.SURROUNDING_MAX_DIST_THRES)
@@ -120,26 +145,6 @@ class AnaVideoMete:
 
                 # 2. 如果当前帧存在kicker 则将当前帧的kicker给绘制出来
                 frame = render.renderRRectLabel_batch(frame, [cur_kicker], color=(255, 255, 255), font_color=(0, 0, 0), label_width=96, label_height=30)
-
-                # 5. 在ttl帧数窗口内探测下一个kicker
-                if self.probe_kicker_up_frame_num > self.frame_num:
-                    for bbox in frame_record["bbox"]:
-                        if (self.probe_kicker_oid == bbox.oid and self.probe_kicker_cls == bbox.cls):
-                            frame = render.renderRRectLabel_batch(frame, [bbox], color=(0, 0, 255), font_color=(0, 0, 0), label_width=96, label_height=30)
-                            break
-                else:
-                    frame_probe_num = self.frame_num + 1
-                    probe_ttl = self.PROBE_TTL
-                    while probe_ttl > 0 and (frame_probe_num in self.labels_dict.keys()):
-                        probe_kicker = self.labels_dict[frame_probe_num]["kicker"]
-                        # 这里只是为了修复自我标注时相同的id 如果采用检测的结果就不会有这种问题 此时所有的id都是唯一的
-                        if probe_kicker is not None and (probe_kicker.oid != cur_kicker.oid or (probe_kicker.oid == cur_kicker.oid and probe_kicker.cls != cur_kicker.cls)):
-                            self.probe_kicker_up_frame_num = frame_probe_num
-                            self.probe_kicker_cls = probe_kicker.cls
-                            self.probe_kicker_oid = probe_kicker.oid
-                            break
-                        frame_probe_num += 1
-                        probe_ttl -= 1
 
         self.frame_num += 1
         if do_not_incr:
