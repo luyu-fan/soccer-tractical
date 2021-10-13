@@ -1,7 +1,8 @@
 import threading
-from tkinter.constants import DISABLED
 import cv2, time, os
 import tkinter, tkinter.ttk as ttk
+
+from ttkthemes import ThemedTk
 from PIL import Image, ImageTk
 
 from lib.dataprocess import prepare
@@ -210,17 +211,17 @@ class SoccerDetector:
                         str((self.root.winfo_screenheight() - self.W_HEIGHT) // 2))
 
         # draw pannel
-        self.draw_pannel = tkinter.Frame(self.root) # width=1280, height=720
+        self.draw_pannel = ttk.Frame(self.root) # width=1280, height=720
         self.draw_pannel.place(relx=0, rely=0, relwidth=1.0, relheight=0.92) # pack(side=tkinter.TOP, fill=tkinter.X)
         # show
-        self.image_label = tkinter.Label(self.draw_pannel, image=self.logo_image)
+        self.image_label = ttk.Label(self.draw_pannel, image=self.logo_image)
         self.image_label.place(relx=0, rely=0, relwidth=1.0, relheight=1.0) # pack(fill=tkinter.BOTH)
 
         # init
         # self.image_label.image = self.logo_image
 
         # control pannel
-        self.control_pannel = tkinter.Frame(self.root, background="gray") # width=1280, height=60,
+        self.control_pannel = ttk.Frame(self.root) # width=1280, height=60,
         self.control_pannel.place(relx=0, rely=0.92, relwidth=1.0, relheight=0.08) # .pack(side=tkinter.BOTTOM, fill=tkinter.Y)
 
         # buttons
@@ -241,14 +242,14 @@ class SoccerDetector:
         # display bbox
         self.bbox_display_check_IntVar = tkinter.IntVar()
         self.bbox_display_check_IntVar.set(0)
-        self.bbox_display_checkbox = ttk.Checkbutton(self.control_pannel, text="BBOX", variable=self.bbox_display_check_IntVar, command=self.show_bbox_check)
-        self.bbox_display_checkbox.place(relx=0.48, rely=0.25, relwidth=0.045, relheight=0.5)
+        self.bbox_display_checkbox = ttk.Checkbutton(self.control_pannel, text="Bbox", variable=self.bbox_display_check_IntVar, command=self.show_bbox_check)
+        self.bbox_display_checkbox.place(relx=0.48, rely=0.25, relwidth=0.05, relheight=0.5)
 
         # slow slow down
         self.slow_slow_check_IntVar = tkinter.IntVar()
         self.slow_slow_check_IntVar.set(0)
         self.slow_slow_checkbox = ttk.Checkbutton(self.control_pannel, text="Slowly", variable=self.slow_slow_check_IntVar, command=self.slow_slow_down)
-        self.slow_slow_checkbox.place(relx=0.53, rely=0.25, relwidth=0.05, relheight=0.5)
+        self.slow_slow_checkbox.place(relx=0.53, rely=0.25, relwidth=0.06, relheight=0.5)
 
         # combobox
         self.video_combox_box = ttk.Combobox(self.control_pannel, state = "readonly")
@@ -342,7 +343,8 @@ class SoccerDetector:
 
 if __name__ == "__main__":
 
-    main_window = tkinter.Tk()
+    # main_window = tkinter.Tk()
+    main_window = ThemedTk(theme="equilux")
 
     app = SoccerDetector(main_window)
     app.init_window()
