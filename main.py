@@ -11,7 +11,7 @@ from lib.interaction import interaction
 from lib.utils import team_shape
 from lib.workthread import thread as wthread
 
-class AnaVideoMete:
+class AnaVideoMeta:
     """
     对视频分析结果的包装
     """
@@ -35,7 +35,7 @@ class AnaVideoMete:
         self.probe_kicker_up_frame_num = 0
         self.frame_num = 1
 
-        self.VIDEO_STATUS = AnaVideoMete.BUILD_PREPARED
+        self.VIDEO_STATUS = AnaVideoMeta.BUILD_PREPARED
         self.err_info = None
 
     def set_status(self,status):
@@ -51,16 +51,16 @@ class AnaVideoMete:
         return status
 
     def build(self):
-        self.set_status(AnaVideoMete.BUILDING)
+        self.set_status(AnaVideoMeta.BUILDING)
         try:
             self.build_frames()
             self.build_labels()
             self.count_frames()
         except Exception() as e:
             self.err_info = e
-            self.set_status(AnaVideoMete.BUILD_ERR)
+            self.set_status(AnaVideoMeta.BUILD_ERR)
         else:
-            self.set_status(AnaVideoMete.FINISHED)
+            self.set_status(AnaVideoMeta.FINISHED)
 
     def build_frames(self):
         prepare.prepare_frames(self.videoName)
@@ -168,11 +168,18 @@ class SoccerDetector:
 
         self.videos_dict = {}
 
-        video1 = AnaVideoMete("BXZNP1_17.mp4")
-        video2 = AnaVideoMete("NOSV9C_37.mp4")
+        video1 = AnaVideoMeta("BXZNP1_17.mp4")
+        video2 = AnaVideoMeta("NOSV9C_37.mp4")
+        video3 = AnaVideoMeta("BXZNP1_17_Alg.mp4")
+        video4 = AnaVideoMeta("Soccer_Long_Demo.mp4")
+
+        self.videos_name_list = ["BXZNP1_17.mp4", "NOSV9C_37.mp4", "BXZNP1_17_Alg.mp4", "Soccer_Long_Demo.mp4"]
 
         self.videos_dict[video1.videoName] = video1
         self.videos_dict[video2.videoName] = video2
+        self.videos_dict[video3.videoName] = video3
+        self.videos_dict[video4.videoName] = video4
+        
         self.cur_video = None
         # self.cur_video = self.videos_dict[video1.videoName]
 
@@ -255,7 +262,7 @@ class SoccerDetector:
         self.video_combox_box = ttk.Combobox(self.control_pannel, state = "readonly")
         self.video_combox_box.place(relx=0.89, rely=0.25, relwidth=0.1, relheight=0.5)
         # fixed now TODO add new video
-        self.video_combox_box['values'] = ["BXZNP1_17.mp4", "NOSV9C_37.mp4"]
+        self.video_combox_box['values'] = self.videos_name_list
         self.video_combox_box.bind("<<ComboboxSelected>>", self.change_video)
 
         # events
@@ -324,7 +331,7 @@ class SoccerDetector:
                 cur_video = self.get_cur_video()
                 if cur_video is None:
                     continue
-                elif cur_video.VIDEO_STATUS != AnaVideoMete.FINISHED:
+                elif cur_video.VIDEO_STATUS != AnaVideoMeta.FINISHED:
                     cur_video.build()
                 else:
                     # ≈ 35ms for one frame
@@ -341,6 +348,9 @@ class SoccerDetector:
                         # for slow slow down: sleeping 300ms
                         time.sleep(0.3)
 
+def spliting_videos(video_name):
+    prepare.prepare_frames(video_name)
+
 if __name__ == "__main__":
 
     # main_window = tkinter.Tk()
@@ -350,4 +360,6 @@ if __name__ == "__main__":
     app.init_window()
 
     main_window.mainloop()
+
+    # spliting_videos("../")
 

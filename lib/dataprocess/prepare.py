@@ -80,6 +80,7 @@ def prepare_labels_myown(videoName, kick_dist_pixel_thres):
                     frames_map[frame_id]["bbox"] = []
                     frames_map[frame_id]["ball"] = None
                     frames_map[frame_id]["kicker"] = None
+
                 x1 = int(lineRecord[3])
                 y1 = int(lineRecord[4])
                 width = int(lineRecord[5])
