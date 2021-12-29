@@ -1,0 +1,6 @@
+"""
+存放一些常量
+"""
+WELCOME_WINDOW = 0
+LIBRARY_WINDOW = 1
+PLAYER_WINDOW = 2
