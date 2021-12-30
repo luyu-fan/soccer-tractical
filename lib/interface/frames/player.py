@@ -13,7 +13,7 @@ class PlayerFrame:
         """
         播放器。对每一帧视频进行渲染处理并播放。
         Args:
-            root: 父容器
+            root: 父级窗体或控件
         """
         self.root = root
 

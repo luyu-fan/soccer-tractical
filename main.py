@@ -8,7 +8,7 @@ if __name__ == "__main__":
     main_window = ThemedTk(theme="equilux")
 
     app = App(main_window, 1280, 720)
-    app.init_window()
+    app.init()
 
     main_window.mainloop()
 
