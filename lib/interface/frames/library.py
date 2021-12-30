@@ -61,6 +61,17 @@ class LibraryFrame:
         self.left_bar.place(relx=0, rely=0, relwidth=0.1, relheight=1.0)
         self.left_bar.config(style=constant.DARK_FRAME_BACKGROUND_NAME)
 
+        # finished 菜单按钮
+        self.finished_image = ImageTk.PhotoImage(image = Image.open("./assets/finished.png"))
+        self.finished_btn = ttk.Button(self.left_bar,image=self.finished_image, command=self.filter_finished)
+        self.finished_btn.place(relx=0, rely=0, relwidth=1, relheight=0.15)
+        self.finished_btn.config(style=constant.DARK_BTN_BACKGROUND_NAME)
+
+        self.proc_image = ImageTk.PhotoImage(image = Image.open("./assets/processing.png"))
+        self.proc_btn = ttk.Button(self.left_bar,image=self.proc_image, command=self.filter_processing)
+        self.proc_btn.place(relx=0, rely=0.15, relwidth=1, relheight=0.15)
+        self.proc_btn.config(style=constant.DARK_BTN_BACKGROUND_NAME)
+
         # right_main_plane 右侧显示主体
         self.right_main_plane = ttk.Frame(self.top_level_frame)
         self.right_main_plane.place(relx=0.12, rely=0.05, relwidth=0.85, relheight=0.9)
@@ -80,6 +91,18 @@ class LibraryFrame:
         self.dis_cards_plane = ttk.Frame(self.right_main_plane)
         self.dis_cards_plane.place(relx=0.0, rely=0.1, relwidth=1.0, relheight=0.9)
         self.dis_cards_plane.config(style=constant.SHALLOW_FRAME_BACKGROUND_NAME)
+
+    def filter_finished(self):
+        """
+        选择处理完毕的视频
+        """
+        print("Select Finished")
+    
+    def filter_processing(self):
+        """
+        选择处理中的视频
+        """
+        print("Select Processing")
 
     def display(self):
         """

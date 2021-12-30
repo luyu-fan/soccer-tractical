@@ -79,6 +79,9 @@ class App:
         self.desc_text_style = ttk.Style()
         self.desc_text_style.configure(constant.DESC_TEXT_STYLE_NAME, background = "#6f6f6f", foreground="white",font=(None, 14))
 
+        self.dark_btn_style = ttk.Style()
+        self.dark_btn_style.configure(constant.DARK_BTN_BACKGROUND_NAME, background = "#3f3f3f", foreground = "#3f3f3f", borderwidth = 0)
+
     def switch_window(self, window_code, **kwarg):
         """
         根据指定的窗体代码进行页面切换

@@ -39,12 +39,14 @@ class VideoCard:
         # 封面
         self.cover_plane = ttk.Frame(self.card)
         self.cover_plane.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=0.7)
+        self.cover_plane.update()
+        # print(self.cover_plane.winfo_width(), self.cover_plane.winfo_height())
         
         # TODO 设置图像封面
         self.cover_label = ttk.Label(self.cover_plane, background="#eeffee")
         self.cover_label.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
         self.cover_label.config(style=constant.DESC_TEXT_STYLE_NAME)
-
+        
         # 标题
         self.title_plane = ttk.Frame(self.card)
         self.title_plane.place(relx=0.0, rely=0.7, relwidth=1.0, relheight=0.15)
