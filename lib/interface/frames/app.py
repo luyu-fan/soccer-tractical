@@ -5,7 +5,7 @@ from tkinter import ttk
 
 from ..constant import constant
 from ..frames import welcome, library, player
-from ..slots import slots
+from ..common import slots,datahub
 from ..constant import constant
 
 class App:
@@ -29,6 +29,7 @@ class App:
         self.W_HEIGHT = w_height
 
         self.slots_hub = slots.SlotsHub()
+        self.data_hub = datahub.DataHub()
 
         self.slots_hub.register(constant.SWITCH_FRAME_EVENT, self.switch_window)
 
@@ -40,12 +41,16 @@ class App:
         """
         return self.window
 
-    def init(self):
+    def init(
+        self,
+        finished_file,
+    ):
         """
         对应用进行初始化
         """
         self.__init_app_style()
         self.__init_window()
+        self.__load__finished(finished_file)
 
     def __init_window(self):
         """
@@ -82,6 +87,16 @@ class App:
         self.dark_btn_style = ttk.Style()
         self.dark_btn_style.configure(constant.DARK_BTN_BACKGROUND_NAME, background = "#3f3f3f", foreground = "#3f3f3f", borderwidth = 0)
 
+    def __load__finished(self,file_path):
+        """
+        加载已经处理完毕的视频标题
+        """
+        finished_videos = []
+        with open(file_path, encoding="utf-8", mode='r') as f:
+            for line in f.readlines():
+                finished_videos.append(line[:-1])
+        self.data_hub.set(constant.FINISHED_VIDEOS, finished_videos)
+
     def switch_window(self, window_code, **kwarg):
         """
         根据指定的窗体代码进行页面切换
@@ -93,8 +108,7 @@ class App:
         if window_code == constant.SWITCH_WELCOME_FRAME_CODE:
             self.cur_display_frame = welcome.WelcomeFrame(self.window)
         elif window_code == constant.SWITCH_LIBRARY_FRAME_CODE:
-            print("library")
-            self.cur_display_frame = library.LibraryFrame(self.window, None)
+            self.cur_display_frame = library.LibraryFrame(self.window)
         elif window_code == constant.SWITCH_PLAYER_FRAME_CODE:
             ...
         else:

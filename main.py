@@ -8,7 +8,7 @@ if __name__ == "__main__":
     main_window = ThemedTk(theme="equilux")
 
     app = App(main_window, 1280, 720)
-    app.init()
+    app.init(finished_file="./datasets/record/finished.txt")   # TODO replace by DB
 
     main_window.mainloop()
 

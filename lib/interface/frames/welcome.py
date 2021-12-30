@@ -6,7 +6,7 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 
 from ..constant import constant
-from ..slots import slots
+from ..common import slots
 
 class WelcomeFrame:
 

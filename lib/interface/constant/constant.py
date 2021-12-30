@@ -2,6 +2,8 @@
 存放一些全局常量
 """
 SWITCH_FRAME_EVENT = "Switch_Frame_Event"
+FINISHED_VIDEOS = "Finished_Videos"
+PROCESSING_VIDEOS = "Processing_Videos"
 
 SWITCH_WELCOME_FRAME_CODE = 0
 SWITCH_LIBRARY_FRAME_CODE = 1
