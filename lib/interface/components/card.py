@@ -5,6 +5,7 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 
 from lib.constant import constant
+from lib.interface.common import slots
 
 class VideoCard:
     """
@@ -28,6 +29,8 @@ class VideoCard:
         self.video = video
         self.pos = pos
         self.size = size
+
+        self.slots_hub = slots.SlotsHub()
 
         self.init_frame()
 
@@ -74,7 +77,7 @@ class VideoCard:
         双击跳转至播放
         """
         if self.video.get_status() == 1:
-            print("准备跳转到播放")
+            self.slots_hub.get_handler(constant.SWITCH_FRAME_EVENT)(constant.SWITCH_PLAYER_FRAME_CODE, video = self.video)
         else:
             print("请等待处理完毕")
 

@@ -35,7 +35,9 @@ class App:
 
         self.slots_hub.register(constant.SWITCH_FRAME_EVENT, self.switch_window)
 
-        self.cur_display_frame = None
+        self.welcome_frame = None
+        self.library_frame = None
+        self.player_frame = None
 
     def get_window(self):
         """
@@ -110,15 +112,24 @@ class App:
         根据指定的窗体代码进行页面切换
         Args:
             window_code: 需要切换的目标窗体代码
+            **kwarg: 剩余的若干个关键字参数
         """
-        if self.cur_display_frame is not None:
-            self.cur_display_frame.destory()
+        # 欢迎界面只会展示一次
+        if self.welcome_frame is not None:
+            self.welcome_frame.destory()
         if window_code == constant.SWITCH_WELCOME_FRAME_CODE:
-            self.cur_display_frame = welcome.WelcomeFrame(self.window)
+            self.welcome_frame = welcome.WelcomeFrame(self.window)
         elif window_code == constant.SWITCH_LIBRARY_FRAME_CODE:
-            self.cur_display_frame = library.LibraryFrame(self.window)
+            if self.player_frame is not None:
+                self.player_frame.destroy()
+            if self.library_frame is None:
+                self.library_frame = library.LibraryFrame(self.window)
         elif window_code == constant.SWITCH_PLAYER_FRAME_CODE:
-            ...
+            # 在library_frame上叠加player_frame
+            if "video" in kwarg.keys():
+                self.player_frame = player.PlayerFrame(self.window, kwarg["video"])
+            else:
+                self.player_frame = player.PlayerFrame(self.window, None)
         else:
             raise NotImplementedError
 
