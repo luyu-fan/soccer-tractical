@@ -19,3 +19,6 @@ DESC_TEXT_STYLE_NAME = "Desc.TLabel"
 
 DARK_BTN_BACKGROUND_NAME = "Dark.TButton"
 SHALLOW_BTN_BACKGROUND_NAME = "Shallow.TButton"
+
+# 程序存放视频已经中间处理数据的绝对路径
+DATA_ROOT = r"C:\Users\luyu-fan\Desktop\mdp\main-code\fake-tractical\datasets"

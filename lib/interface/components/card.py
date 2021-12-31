@@ -2,8 +2,9 @@
 素材实体
 """
 from tkinter import ttk
+from PIL import Image, ImageTk
 
-from ..constant import constant
+from lib.constant import constant
 
 class VideoCard:
     """
@@ -39,33 +40,43 @@ class VideoCard:
         # 封面
         self.cover_plane = ttk.Frame(self.card)
         self.cover_plane.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=0.7)
-        self.cover_plane.update()
-        # print(self.cover_plane.winfo_width(), self.cover_plane.winfo_height())
+        self.cover_plane.update()   # 先渲染之后才能得到对应的控件像素大小
+        plane_width = self.cover_plane.winfo_width()
+        plane_height = self.cover_plane.winfo_height()
         
-        # TODO 设置图像封面
-        self.cover_label = ttk.Label(self.cover_plane, background="#eeffee")
+        # 设置视频封面
+        self.cover_img = ImageTk.PhotoImage(image = self.video.get_cover_img().resize(size = (plane_width, plane_height)))
+        self.cover_label = ttk.Label(self.cover_plane, image=self.cover_img)
         self.cover_label.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
         self.cover_label.config(style=constant.DESC_TEXT_STYLE_NAME)
+        # 绑定双击事件
+        self.cover_label.bind("<Double-Button-1>", self.dbclick_play)
         
         # 标题
         self.title_plane = ttk.Frame(self.card)
         self.title_plane.place(relx=0.0, rely=0.7, relwidth=1.0, relheight=0.15)
-        self.title_label = ttk.Label(self.title_plane, text="视频:" + self.video.name)
+        self.title_label = ttk.Label(self.title_plane, text="视频:" + self.video.get_name())
         self.title_label.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
         self.title_label.config(style=constant.DESC_TEXT_STYLE_NAME)
 
         # 时长
         self.duration_plane = ttk.Frame(self.card)
         self.duration_plane.place(relx=0.0, rely=0.85, relwidth=1.0, relheight=0.15)
-        self.duration_label = ttk.Label(self.duration_plane, text="帧数: 123")
+        self.duration_label = ttk.Label(self.duration_plane, text="帧数: " + str(self.video.get_frames()))
         self.duration_label.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
         self.duration_label.config(style=constant.DESC_TEXT_STYLE_NAME)
 
-    def dbclick_play(self):
+    def dbclick_play(
+        self,
+        event,
+    ):
         """
-        双击播放
+        双击跳转至播放
         """
-        ...
+        if self.video.get_status() == 1:
+            print("准备跳转到播放")
+        else:
+            print("请等待处理完毕")
 
     def destory(self):
         """

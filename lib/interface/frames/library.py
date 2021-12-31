@@ -6,7 +6,7 @@ import math
 import tkinter, tkinter.ttk as ttk
 from PIL import Image, ImageTk
 
-from ..constant import constant
+from lib.constant import constant
 from ..components import card
 from ..common import datahub
 
@@ -109,12 +109,26 @@ class LibraryFrame:
         self.prev_btn.bind('<Button-1>', self.prev_page)
         self.next_btn.bind('<Button-1>', self.next_page)
 
-    def prev_page(self, event):
+    def prev_page(
+        self,
+        event
+    ):
+        """
+        Args:
+            event: 事件
+        """
         self.cur_page -= 1
         self.cur_page = max(self.cur_page, 0)
         self.filter_finished() if self.in_finished_mode else self.filter_processing()
 
-    def next_page(self, event):
+    def next_page(
+        self,
+        event
+    ):
+        """
+        Args:
+            event: 事件
+        """
         self.cur_page += 1
         self.filter_finished() if self.in_finished_mode else self.filter_processing()
         
@@ -137,7 +151,7 @@ class LibraryFrame:
 
         # 视频展示
         self.pages_info_var.set(str(self.cur_page + 1) + " / " + str(total_pages) if total_pages > 0 else "- / -")
-        self.display_title.set("已处理视频总数:" + str(len(self.videos)))
+        self.display_title.set("已处理视频总数: " + str(len(self.videos)))
 
         self.display()
     
@@ -160,7 +174,7 @@ class LibraryFrame:
 
         # 视频展示
         self.pages_info_var.set(str(self.cur_page + 1) + " / " + str(total_pages) if total_pages > 0 else "- / -")
-        self.display_title.set("处理中视频总数:" + str(len(self.videos)))
+        self.display_title.set("处理中视频总数: " + str(len(self.videos)))
 
         self.display()
 

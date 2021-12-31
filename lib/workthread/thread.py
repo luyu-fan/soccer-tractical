@@ -7,7 +7,9 @@ import threading
 class WorkThread(threading.Thread):
 
     def __init__(self, worker_name, work_func):
-        threading.Thread.__init__(self)
+        super(WorkThread, self).__init__()
+
+        # threading.Thread.__init__(self)
         self.worker_name = worker_name
         self.work_func = work_func
     

@@ -6,9 +6,11 @@ if __name__ == "__main__":
 
     # main_window = tkinter.Tk()
     main_window = ThemedTk(theme="equilux")
+    main_window.title("SoccerAnalysis")
+    main_window.iconbitmap("./assets/soccer_roteiro.ico")
 
     app = App(main_window, 1280, 720)
-    app.init(finished_file="./datasets/record/finished.txt")   # TODO replace by DB
+    app.init()
 
     main_window.mainloop()
 

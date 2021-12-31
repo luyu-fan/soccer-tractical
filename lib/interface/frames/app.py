@@ -1,12 +1,13 @@
 """
 程序主框架
 """
+import os
 from tkinter import ttk
 
-from ..constant import constant
+from lib.constant import constant
+from lib.dataprocess import check_exists
 from ..frames import welcome, library, player
 from ..common import slots,datahub
-from ..constant import constant
 from ..data import video
 
 class App:
@@ -44,21 +45,18 @@ class App:
 
     def init(
         self,
-        finished_file,
     ):
         """
         对应用进行初始化
         """
         self.__init_app_style()
         self.__init_window()
-        self.__load__finished(finished_file)
+        self.__load__finished()
 
     def __init_window(self):
         """
         简单初始化窗体
         """
-        self.window.title("SoccerDetector")
-
         # self-adjust: center
         self.window.geometry(str(self.W_WIDTH) + "x" + str(self.W_HEIGHT) + "+" + str((self.window.winfo_screenwidth() - self.W_WIDTH) // 2) + "+" 
         + str((self.window.winfo_screenheight() - self.W_HEIGHT) // 2))
@@ -92,15 +90,18 @@ class App:
         self.shallow_btn_style.configure(constant.SHALLOW_BTN_BACKGROUND_NAME, background = "#6f6f6f", fg="white",font=('microsoft yahei', 14))
         
     
-    def __load__finished(self,file_path):
+    def __load__finished(self):
         """
         加载已经处理完毕的视频标题
+        TODO replace by DB or others
         """
         finished_videos = []
         processing_videos = []
-        with open(file_path, encoding="utf-8", mode='r') as f:
-            for line in f.readlines():
-                finished_videos.append(video.Video(name = line[:-1], status = 1))
+        finished_record_file = os.path.join(constant.DATA_ROOT, "record", "finished.txt")
+        if check_exists(finished_record_file):
+            with open(finished_record_file, encoding="utf-8", mode='r') as f:
+                for line in f.readlines():
+                    finished_videos.append(video.Video(name = line[:-1], status = 1))
         self.data_hub.set(constant.FINISHED_VIDEOS, finished_videos)
         self.data_hub.set(constant.PROCESSING_VIDEOS, processing_videos)
 
