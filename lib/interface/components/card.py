@@ -50,7 +50,7 @@ class VideoCard:
         # 标题
         self.title_plane = ttk.Frame(self.card)
         self.title_plane.place(relx=0.0, rely=0.7, relwidth=1.0, relheight=0.15)
-        self.title_label = ttk.Label(self.title_plane, text="视频:")
+        self.title_label = ttk.Label(self.title_plane, text="视频:" + self.video.name)
         self.title_label.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
         self.title_label.config(style=constant.DESC_TEXT_STYLE_NAME)
 
@@ -66,3 +66,9 @@ class VideoCard:
         双击播放
         """
         ...
+
+    def destory(self):
+        """
+        销毁组件中的各个元素
+        """
+        self.card.destroy()

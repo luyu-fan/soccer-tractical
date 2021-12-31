@@ -1,7 +1,8 @@
 """
 素材库整理界面，主要包括的功能为展示所有的素材信息，即已经处理分析过的视频和正在后端处理的视频。
+Warning:线程不安全的素材库类。
 """
-
+import math
 import tkinter, tkinter.ttk as ttk
 from PIL import Image, ImageTk
 
@@ -18,31 +19,30 @@ class LibraryFrame:
         """
         Args:
             root: 父级窗体或控件
-            global_videos: 全局视频列表
         """
         self.root = root
 
         # 所处模式
         self.in_finished_mode = True
 
-        # 分页信息
-        self.cap_in_page = 8     # 每页最多显示的数目
-        self.total_page = 0      # 动态计算的页总数
-        self.cur_page = 0        # 当前页
-        self.cur_start_index = 0 # 当前页对应的起始索引  
-        self.max_cards_num = (self.cap_in_page - self.cap_in_page // 2)                             # 一行中能够显示的最多card数目
+        # 分页设置
+        self.cap_in_page = 8       # 每页最多显示的数目
+        self.total_page = 0        # 动态计算的页总数
+        self.cur_page = 0          # 当前页
+        self.cur_start_index = 0   # 当前页对应的起始索引  
+        self.max_cards_num = (self.cap_in_page - self.cap_in_page // 2)                            # 一行中能够显示的最多card数目
         self.card_h_margin = 0.05                                                                  # 横向边距
         self.card_v_margin = 0.1                                                                   # 纵向边距
         self.card_width = (1 - self.card_h_margin * (self.max_cards_num - 1)) / self.max_cards_num
         self.card_height = (1 - self.card_v_margin * 3) / 2
 
         self.data_hub = datahub.DataHub()
-
-        # 展示视频片段的卡片数组
-        self.display_cards_list = []
+        
+        self.videos = []             # 当前用于动态展示的Videos列表
+        self.display_cards_list = [] # 展示视频片段的卡片数组
 
         self.init_frame()
-        self.display()
+        self.filter_finished()
     
     def init_frame(self):
         """
@@ -71,7 +71,7 @@ class LibraryFrame:
 
         # right_main_plane 右侧显示主体
         self.right_main_plane = ttk.Frame(self.top_level_frame)
-        self.right_main_plane.place(relx=0.12, rely=0.05, relwidth=0.85, relheight=0.9)
+        self.right_main_plane.place(relx=0.12, rely=0.05, relwidth=0.85, relheight=0.92)
         self.right_main_plane.config(style=constant.SHALLOW_FRAME_BACKGROUND_NAME)
 
         # dis_title_plane 统计信息
@@ -92,43 +92,103 @@ class LibraryFrame:
         self.dis_cards_plane.config(style=constant.SHALLOW_FRAME_BACKGROUND_NAME)
 
         # next prev btn 上一页下一页的按钮
-        # TODO 按钮实现
+        self.pages_ctl_plane = ttk.Frame(self.right_main_plane)
+        self.pages_ctl_plane.place(relx=0.7, rely=0.96, relwidth=0.3, relheight=0.04)
+        self.pages_ctl_plane.config(style=constant.SHALLOW_FRAME_BACKGROUND_NAME)
+        self.prev_btn = ttk.Label(self.pages_ctl_plane, text="上一页", anchor='center')
+        self.prev_btn.place(relx=0.0, rely=0.0, relwidth=0.4, relheight=1.0)
+        self.prev_btn.config(style=constant.DESC_TEXT_STYLE_NAME)
+        self.pages_info_var = tkinter.StringVar()
+        self.page_label = ttk.Label(self.pages_ctl_plane, textvariable = self.pages_info_var, anchor='center')
+        self.page_label.place(relx=0.4, rely=0.0, relwidth=0.2, relheight=1.0)
+        self.page_label.config(style=constant.DESC_TEXT_STYLE_NAME)
+        self.next_btn = ttk.Label(self.pages_ctl_plane, text="下一页", anchor='center')
+        self.next_btn.place(relx=0.6, rely=0.0, relwidth=0.4, relheight=1.0)
+        self.next_btn.config(style=constant.DESC_TEXT_STYLE_NAME)
 
+        self.prev_btn.bind('<Button-1>', self.prev_page)
+        self.next_btn.bind('<Button-1>', self.next_page)
+
+    def prev_page(self, event):
+        self.cur_page -= 1
+        self.cur_page = max(self.cur_page, 0)
+        self.filter_finished() if self.in_finished_mode else self.filter_processing()
+
+    def next_page(self, event):
+        self.cur_page += 1
+        self.filter_finished() if self.in_finished_mode else self.filter_processing()
+        
     def filter_finished(self):
         """
         选择处理完毕的视频
         """
-        self.in_finished_mode = True
-        self.display_title.set("已处理视频总数:" + str(len(self.data_hub.get(constant.FINISHED_VIDEOS))))
-        print("Select Finished")
+        if not self.in_finished_mode:
+            self.destory_cards()
+            self.cur_page = 0
+            self.in_finished_mode = True
+
+        # 动态刷新
+        self.videos = self.data_hub.get(constant.FINISHED_VIDEOS)
+        total_pages = math.ceil(len(self.videos ) / self.cap_in_page)
+
+        # 循环分页
+        if self.cap_in_page * self.cur_page >= len(self.videos): 
+            self.cur_page = 0
+
+        # 视频展示
+        self.pages_info_var.set(str(self.cur_page + 1) + " / " + str(total_pages) if total_pages > 0 else "- / -")
+        self.display_title.set("已处理视频总数:" + str(len(self.videos)))
+
+        self.display()
     
     def filter_processing(self):
         """
         选择处理中的视频
         """
-        self.in_finished_mode = False
-        self.display_title.set("正在处理:" + str(len(self.data_hub.get(constant.FINISHED_VIDEOS))))
-        print("Select Processing")
+        if self.in_finished_mode:
+            self.destory_cards()
+            self.cur_page = 0
+            self.in_finished_mode = False
+        
+        # 动态刷新
+        self.videos = self.data_hub.get(constant.PROCESSING_VIDEOS)
+        total_pages = math.ceil(len(self.videos ) / self.cap_in_page)
+
+        # 循环设置
+        if self.cap_in_page * self.cur_page >= len(self.videos): 
+            self.cur_page = 0
+
+        # 视频展示
+        self.pages_info_var.set(str(self.cur_page + 1) + " / " + str(total_pages) if total_pages > 0 else "- / -")
+        self.display_title.set("处理中视频总数:" + str(len(self.videos)))
+
+        self.display()
 
     def display(self):
         """
         展示所有的视频信息，一页内的内容分上下两排展示。
         """
-        # 绘制已经处理完毕可播放的
-        # videos = self.processed_videos_list[self.cur_start_index:self.cur_start_index+self.cap_in_page]
-        # for (i, video) in enumerate(videos):
-        videos = self.data_hub.get(constant.FINISHED_VIDEOS) if self.in_finished_mode else self.data_hub.get(constant.PROCESSING_VIDEOS)
-        if self.cap_in_page * self.cur_page >= len(videos):
-            self.cur_page = 0
-        # 更新统计信息
-        for i in range((self.cur_page * self.cap_in_page), min((self.cur_page + 1) * self.cap_in_page, len(videos))):
+        # 销毁card
+        self.destory_cards()
+
+        # 绘制card
+        for i in range((self.cur_page * self.cap_in_page), min((self.cur_page + 1) * self.cap_in_page, len(self.videos))):
             # 分两排绘制
+            video = self.videos[i]
             i = i % self.cap_in_page
             if i < self.max_cards_num:
-                display_card = card.VideoCard(self.dis_cards_plane, None, (i * (self.card_width + self.card_h_margin), self.card_v_margin), (self.card_width, self.card_height))
+                display_card = card.VideoCard(self.dis_cards_plane, video, (i * (self.card_width + self.card_h_margin), self.card_v_margin), (self.card_width, self.card_height))
             else:
-                display_card = card.VideoCard(self.dis_cards_plane, None, ((i - self.max_cards_num) * (self.card_width + self.card_h_margin), self.card_v_margin * 2 + self.card_height), (self.card_width, self.card_height))
+                display_card = card.VideoCard(self.dis_cards_plane, video, ((i - self.max_cards_num) * (self.card_width + self.card_h_margin), self.card_v_margin * 2 + self.card_height), (self.card_width, self.card_height))
             self.display_cards_list.append(display_card)
+
+    def destory_cards(self):
+        """
+        销毁展示的卡片
+        """
+        for card in self.display_cards_list:
+            card.destory()
+        self.display_cards_list = []
 
     def destory(self):
         

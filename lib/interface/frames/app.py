@@ -7,6 +7,7 @@ from ..constant import constant
 from ..frames import welcome, library, player
 from ..common import slots,datahub
 from ..constant import constant
+from ..data import video
 
 class App:
 
@@ -76,26 +77,32 @@ class App:
         self.dark_bg_style.configure(constant.DARK_FRAME_BACKGROUND_NAME, background = "#3f3f3f")
 
         self.title_text_style = ttk.Style()
-        self.title_text_style.configure(constant.TITLE_TEXT_STYLE_NAME, background = "#6f6f6f", foreground="white",font=(None, 20))
+        self.title_text_style.configure(constant.TITLE_TEXT_STYLE_NAME, background = "#6f6f6f", foreground="white",font=('microsoft yahei', 20))
         
         self.separator_line_style = ttk.Style()
         self.separator_line_style.configure(constant.FRAME_SEPARATOR_LINE_NAME, background = "#ffffff")
 
         self.desc_text_style = ttk.Style()
-        self.desc_text_style.configure(constant.DESC_TEXT_STYLE_NAME, background = "#6f6f6f", foreground="white",font=(None, 14))
+        self.desc_text_style.configure(constant.DESC_TEXT_STYLE_NAME, background = "#6f6f6f", foreground="white",font=('microsoft yahei', 12))
 
         self.dark_btn_style = ttk.Style()
         self.dark_btn_style.configure(constant.DARK_BTN_BACKGROUND_NAME, background = "#3f3f3f", foreground = "#3f3f3f", borderwidth = 0)
 
+        self.shallow_btn_style = ttk.Style()
+        self.shallow_btn_style.configure(constant.SHALLOW_BTN_BACKGROUND_NAME, background = "#6f6f6f", fg="white",font=('microsoft yahei', 14))
+        
+    
     def __load__finished(self,file_path):
         """
         加载已经处理完毕的视频标题
         """
         finished_videos = []
+        processing_videos = []
         with open(file_path, encoding="utf-8", mode='r') as f:
             for line in f.readlines():
-                finished_videos.append(line[:-1])
+                finished_videos.append(video.Video(name = line[:-1], status = 1))
         self.data_hub.set(constant.FINISHED_VIDEOS, finished_videos)
+        self.data_hub.set(constant.PROCESSING_VIDEOS, processing_videos)
 
     def switch_window(self, window_code, **kwarg):
         """
