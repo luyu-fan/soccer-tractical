@@ -38,7 +38,6 @@ def prepare_labels(videoName, kick_dist_pixel_thres = 30):
         videoName: 视频名称
         kick_dist_pixel_thres: 最小判定像素距离
     """
-    # TODO MOT 算法结果
     return prepare_labels_myown(videoName, kick_dist_pixel_thres)
 
 def prepare_labels_myown(videoName, kick_dist_pixel_thres):
@@ -55,7 +54,7 @@ def prepare_labels_myown(videoName, kick_dist_pixel_thres):
                 "kicker": BBoxRecord,
             }
         }
-    Args：
+    Args:
         videoName: 视频名称
         kick_dist_pixel_thres: 判定击球的最小距离
     Return:

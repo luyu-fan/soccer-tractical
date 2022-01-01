@@ -220,6 +220,7 @@ class SoccerDetector:
         # draw pannel
         self.draw_pannel = ttk.Frame(self.root) # width=1280, height=720
         self.draw_pannel.place(relx=0, rely=0, relwidth=1.0, relheight=0.92) # pack(side=tkinter.TOP, fill=tkinter.X)
+        
         # show
         self.image_label = ttk.Label(self.draw_pannel, image=self.logo_image)
         self.image_label.place(relx=0, rely=0, relwidth=1.0, relheight=1.0) # pack(fill=tkinter.BOTH)
