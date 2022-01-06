@@ -126,6 +126,8 @@ class LibraryFrame:
         self.next_btn.bind('<Button-1>', self.next_page)
         self.info_hidden_label.bind('<Button-1>', self.hidden_info_label)
 
+        self.root.protocol("WM_DELETE_WINDOW", self.destory)
+
     def prev_page(
         self,
         event
@@ -154,7 +156,7 @@ class LibraryFrame:
         选择处理完毕的视频
         """
         if not self.in_finished_mode:
-            self.destory_cards()
+            self.hide_cards()
             self.cur_page = 0
             self.in_finished_mode = True
 
@@ -177,7 +179,7 @@ class LibraryFrame:
         选择处理中的视频
         """
         if self.in_finished_mode:
-            self.destory_cards()
+            self.hide_cards()
             self.cur_page = 0
             self.in_finished_mode = False
         
@@ -202,7 +204,7 @@ class LibraryFrame:
             return
         datahub.DataHub.add_processing_video(video_path)
         self.upload_info_var.set("> 视频:  %s 已添加至待处理队列中!" % (video_path.split("/")[-1],))
-        self.video_upload_tip_plane.place(relx=0.2, rely=0.8, relwidth=0.6, relheight=0.08)
+        self.video_upload_tip_plane.place(relx=0.2, rely=0.85, relwidth=0.6, relheight=0.08)
 
     def hidden_info_label(self, event):
         """
@@ -215,7 +217,7 @@ class LibraryFrame:
         展示所有的视频信息，一页内的内容分上下两排展示。
         """
         # 销毁card
-        self.destory_cards()
+        self.hide_cards()
 
         # 绘制card
         for i in range((self.cur_page * self.cap_in_page), min((self.cur_page + 1) * self.cap_in_page, len(self.videos))):
@@ -228,16 +230,23 @@ class LibraryFrame:
                 display_card = card.VideoCard(self.dis_cards_plane, video, ((i - self.max_cards_num) * (self.card_width + self.card_h_margin), self.card_v_margin * 2 + self.card_height), (self.card_width, self.card_height))
             self.display_cards_list.append(display_card)
 
-    def destory_cards(self):
+    def hide_cards(self):
         """
         销毁展示的卡片
         """
         for card in self.display_cards_list:
-            card.destory()
+            card.hide()
         self.display_cards_list = []
 
     def destory(self):
-        
-        self.top_level_frame.destroy()
+        """
+        销毁视图和数据
+        """
+        datahub.DataHub.destory()
 
+        for card in self.display_cards_list:
+            card.destory()
+        self.top_level_frame.destroy()
+        
+        
 

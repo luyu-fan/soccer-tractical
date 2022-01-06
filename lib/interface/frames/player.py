@@ -96,7 +96,7 @@ class PlayerFrame:
         self.back_label.config(style=constant.DESC_TEXT_STYLE_NAME)
         self.back_label.bind("<Button-1>", self.back_library)
 
-        # 防止关闭窗口产生僵尸进程
+        # 防止关闭窗口产生孤儿线程 即线程泄漏
         self.root.protocol("WM_DELETE_WINDOW", self.window_destory)
 
         # ====================================================================================

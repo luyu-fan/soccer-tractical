@@ -99,8 +99,15 @@ class VideoCard:
         else:
             print("请等待处理完毕")
 
+    def hide(self):
+        """
+        隐藏仅仅销毁View而不销毁数据
+        """
+        self.card.destroy()
+
     def destory(self):
         """
         销毁组件中的各个元素
         """
         self.card.destroy()
+        self.video.destroy()

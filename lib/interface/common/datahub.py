@@ -58,5 +58,11 @@ class DataHub:
             DataHub.__global_data_hub[constant.FINISHED_VIDEOS] = []
         DataHub.__global_data_hub[constant.FINISHED_VIDEOS].append(video.Video(video_name, status=video.Video.LOADED))
 
-    
+    @staticmethod
+    def destory():
+        """
+        销毁正在运行的工作线程
+        """
+        for video in DataHub.__global_data_hub[constant.PROCESSING_VIDEOS]:
+            video.destroy()
     

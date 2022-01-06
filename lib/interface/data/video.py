@@ -4,6 +4,7 @@
 import os
 import threading
 import cv2
+import time
 
 from PIL import Image
 
@@ -14,6 +15,8 @@ from lib.render import render
 from lib.interaction import interaction
 from lib.utils import team_shape
 from lib.workthread import thread as wthread
+
+from lib.net import client
 
 class Video:
 
@@ -59,12 +62,21 @@ class Video:
         self.probe_kicker_up_frame_num = 0
         self.cur_frame_num = 1
 
-        # 一些简单的控件句柄
+        # 空间状态更新句柄
         self.cover_update_handler = None
         self.status_update_handler = None
 
+        # 网络客户端 (将视频处理任务看作是互相隔离的客户端)
+        self.client = client.MOTClient(constant.REMOTE_IP, constant.REMOTE_PORT) if self.video_status == Video.UNPROCESS else None
+
+        # 数据处理线程
         self.process_thread = wthread.WorkThread("video_process:"+self.name, self.process)
         self.process_thread.start()
+
+        self._exit_signal = False
+
+        # 处理结果列表
+        self.results_list = []
     
     def process(self):
         """
@@ -74,24 +86,67 @@ class Video:
             1. 视频抽帧
             2. 每帧视频服务器处理
             3. 中间结果整合
-            4. 分队算法
+            4. 写入文件
+            5. 执行分队算法
+            6. 处理完成 切换到处理完毕集合可以渲染 (TODO 有时间将处理完毕的结果同时写入文件或者数据库)
         """
         if self.get_status() == Video.LOADED:
             self.build_labels()
             self.set_status(Video.FINISHED)
         else:
             # 1. 抽帧
-            if self.status_update_handler is not None:
-                self.status_update_handler("状态: 抽帧")
             self.set_status(Video.EXTRACT)
             prepare.prepare_frames(self.name, video_path = self.upload_video_path)
-            print(self.cover_update_handler)
-            if self.cover_update_handler is not None:
-                self.cover_update_handler()
-                self.status_update_handler("状态: 跟踪处理 0%")
+            # 无关紧要的状态更新使用异常机制包裹起来避免异常
+            try:
+                if self.cover_update_handler is not None: self.cover_update_handler()
+            except Exception as e:
+                ...
+            
+            # 2. 视频跟踪处理
+            try:
+                self.client.connect()
+            except Exception as e:
+                self.client.close()
+                return
+
+            try:
+                if self.status_update_handler is not None: self.status_update_handler("状态: 跟踪处理 0%")
+            except Exception as e:
+                ...
+
             self.set_status(Video.TRACKING)
-            # TODO 使用Client进行跟踪处理
-    
+            # 使用Client进行跟踪处理
+            for (i, image_name) in enumerate(os.listdir(self.imgs_folder_name)):
+                if self._exit_signal:
+                    return
+                img_path = os.path.join(self.imgs_folder_name, image_name)
+                frame = cv2.imread(img_path)
+                self.client.send(i + 1, frame)
+                result = self.client.recv()
+                self.results_list.append(result)
+
+                print(i)
+
+                try:
+                    if self.status_update_handler is not None: self.status_update_handler("状态: 跟踪处理 %d%%" % (int((i + 1) / self.get_frames() * 100), ))
+                except Exception as e:
+                    ...
+
+            # 3. 中间数据处理
+            try:
+                if self.status_update_handler is not None:  self.status_update_handler("状态: 中间数据处理")
+            except Exception as e:
+                ...
+            self.set_status(Video.INTERMEDIATE)
+
+            self.client.close()
+            
+    def destroy(self):
+        print("Fuck Thread")
+        self._exit_signal = True
+        time.sleep(0.01)
+
     def get_name(self):
         """
         获取资源名称
@@ -115,11 +170,9 @@ class Video:
         """
         返回视频片段的总帧数
         """
-        if self.total_frames != 0: return self.total_frames
-        else:
-            if check_exists(self.imgs_folder_name):
-                self.total_frames = len(os.listdir(self.imgs_folder_name))
-            return self.total_frames
+        if check_exists(self.imgs_folder_name):
+            self.total_frames = len(os.listdir(self.imgs_folder_name))
+        return self.total_frames
 
     def set_status(
         self,
@@ -247,8 +300,3 @@ class Video:
             self.cur_frame_num -= 1
 
         return frame
-
-    def mot_process(self):
-        """
-        多目标跟踪的处理主流程, 利用多线程处理
-        """

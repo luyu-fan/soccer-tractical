@@ -1,6 +1,10 @@
 """
 存放一些全局常量
 """
+# 此处为了方便调试将服务端信息硬编码 在后续完善环节应该将其通过配置文件的形式读入
+REMOTE_IP = "127.0.0.1"
+REMOTE_PORT = 9900
+
 SWITCH_FRAME_EVENT = "Switch_Frame_Event"
 FINISHED_VIDEOS = "Finished_Videos"
 PROCESSING_VIDEOS = "Processing_Videos"
