@@ -28,8 +28,6 @@ class PlayerFrame:
         self.root = root
         self.video = video
 
-        self.slots_hub = slots.SlotsHub()
-
         # 播放相关
         self.draw_worker = wthread.WorkThread("draw_work", self.draw)
         self.cur_video_lock = threading.Lock()
@@ -153,7 +151,7 @@ class PlayerFrame:
         self._exit_signal = True
         time.sleep(0.3)   # for thread exit
         self.destroy()
-        self.slots_hub.get_handler(constant.SWITCH_FRAME_EVENT)(constant.SWITCH_LIBRARY_FRAME_CODE)
+        slots.SlotsHub.get_handler(constant.SWITCH_FRAME_EVENT)(constant.SWITCH_LIBRARY_FRAME_CODE)
 
     def window_destory(self):
         """

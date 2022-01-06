@@ -7,7 +7,8 @@ class SlotsHub:
     """
     __hub__ = {}
 
-    def register(self, event_name, callfn):
+    @staticmethod
+    def register(event_name, callfn):
         """
         Args:
             event_name: 事件名称
@@ -15,7 +16,8 @@ class SlotsHub:
         """
         SlotsHub.__hub__[event_name] = callfn
 
-    def get_handler(self, event_name):
+    @staticmethod
+    def get_handler(event_name):
         """
         Args:
             event_name: 事件名称

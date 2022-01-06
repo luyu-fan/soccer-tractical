@@ -17,19 +17,24 @@ from lib.workthread import thread as wthread
 
 class Video:
 
-    PROCESSING = 0               # 数据未经过服务器处理
-    FINISHED = 1                 # 数据已经过服务器处理
-    INTERMEDIATE = 2             # 中间数据
+    LOADED = 0                     # 可直接播放的分析视频已加载
+    UNPROCESS = 1                  # 数据未处理
+    EXTRACT = 2                    # 抽帧
+    TRACKING = 3                   # 跟踪
+    INTERMEDIATE = 4               # 中间数据处理
+    FINISHED = 5                   # 数据已经过服务器处理
 
     def __init__(
         self,
         name,
-        status = 0,
+        status = 1,
+        upload_video_path = None,
     ):
         """
         Args:
             name: 名称
             status: 状态 可以在初始化时设定 0未完成 1完成 2中间数据处理
+            upload_video_path: 对应的原始上传的视频文件路径
         """
 
         # 互斥锁
@@ -38,6 +43,7 @@ class Video:
         # 基础信息
         self.name = name
         self.video_status = status
+        self.upload_video_path = upload_video_path
         self.imgs_folder_name = os.path.join(constant.DATA_ROOT, "images", self.name.split(".")[0])
         self.total_frames = 0
         self.cover_img = None
@@ -53,13 +59,39 @@ class Video:
         self.probe_kicker_up_frame_num = 0
         self.cur_frame_num = 1
 
-        self.err_info = None
+        # 一些简单的控件句柄
+        self.cover_update_handler = None
+        self.status_update_handler = None
 
-        if self.video_status == Video.FINISHED:
-            # TODO use an individual thread or others
-            self.build_frames()
+        self.process_thread = wthread.WorkThread("video_process:"+self.name, self.process)
+        self.process_thread.start()
+    
+    def process(self):
+        """
+        在视频展示之间完成一些准备工作。
+        已处理完成视频: 根据跟踪结果完成绘制所需要数据的生成
+        新上传视频片段: 
+            1. 视频抽帧
+            2. 每帧视频服务器处理
+            3. 中间结果整合
+            4. 分队算法
+        """
+        if self.get_status() == Video.LOADED:
             self.build_labels()
-
+            self.set_status(Video.FINISHED)
+        else:
+            # 1. 抽帧
+            if self.status_update_handler is not None:
+                self.status_update_handler("状态: 抽帧")
+            self.set_status(Video.EXTRACT)
+            prepare.prepare_frames(self.name, video_path = self.upload_video_path)
+            print(self.cover_update_handler)
+            if self.cover_update_handler is not None:
+                self.cover_update_handler()
+                self.status_update_handler("状态: 跟踪处理 0%")
+            self.set_status(Video.TRACKING)
+            # TODO 使用Client进行跟踪处理
+    
     def get_name(self):
         """
         获取资源名称

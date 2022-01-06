@@ -4,6 +4,7 @@ Warning:线程不安全的素材库类。
 """
 import math
 import tkinter, tkinter.ttk as ttk
+from tkinter import filedialog
 from PIL import Image, ImageTk
 
 from lib.constant import constant
@@ -35,8 +36,6 @@ class LibraryFrame:
         self.card_v_margin = 0.1                                                                   # 纵向边距
         self.card_width = (1 - self.card_h_margin * (self.max_cards_num - 1)) / self.max_cards_num
         self.card_height = (1 - self.card_v_margin * 3) / 2
-
-        self.data_hub = datahub.DataHub()
         
         self.videos = []             # 当前用于动态展示的Videos列表
         self.display_cards_list = [] # 展示视频片段的卡片数组
@@ -68,6 +67,11 @@ class LibraryFrame:
         self.proc_btn = ttk.Button(self.left_bar,image=self.proc_image, command=self.filter_processing)
         self.proc_btn.place(relx=0, rely=0.15, relwidth=1, relheight=0.15)
         self.proc_btn.config(style=constant.DARK_BTN_BACKGROUND_NAME)
+
+        self.upload_image = ImageTk.PhotoImage(image = Image.open("./assets/upload.png"))
+        self.upload_btn = ttk.Button(self.left_bar,image=self.upload_image, command=self.upload_video)
+        self.upload_btn.place(relx=0, rely=0.3, relwidth=1, relheight=0.15)
+        self.upload_btn.config(style=constant.DARK_BTN_BACKGROUND_NAME)
 
         # right_main_plane 右侧显示主体
         self.right_main_plane = ttk.Frame(self.top_level_frame)
@@ -106,8 +110,21 @@ class LibraryFrame:
         self.next_btn.place(relx=0.6, rely=0.0, relwidth=0.4, relheight=1.0)
         self.next_btn.config(style=constant.DESC_TEXT_STYLE_NAME)
 
+        # 视频消息添加tip
+        self.video_upload_tip_plane = ttk.Frame(self.right_main_plane)
+        self.video_upload_tip_plane.place(relx=0, rely=0, relwidth=0, relheight=0)   # for hidden
+        self.video_upload_tip_plane.config(style=constant.DARK_FRAME_BACKGROUND_NAME)
+        self.upload_info_var = tkinter.StringVar()
+        self.upload_info_label = ttk.Label(self.video_upload_tip_plane, textvariable=self.upload_info_var)
+        self.upload_info_label.place(relx=0.0, rely=0.0, relwidth=0.95, relheight=1.0)
+        self.upload_info_label.config(style=constant.TIP_TEXT_STYLE_NAME)
+        self.info_hidden_label = ttk.Label(self.video_upload_tip_plane, text="[x]", anchor="center", justify="right")
+        self.info_hidden_label.place(relx=0.95, rely=0.0, relwidth=0.05, relheight=1.0)
+        self.info_hidden_label.config(style=constant.TIP_TEXT_STYLE_NAME)
+
         self.prev_btn.bind('<Button-1>', self.prev_page)
         self.next_btn.bind('<Button-1>', self.next_page)
+        self.info_hidden_label.bind('<Button-1>', self.hidden_info_label)
 
     def prev_page(
         self,
@@ -142,7 +159,7 @@ class LibraryFrame:
             self.in_finished_mode = True
 
         # 动态刷新
-        self.videos = self.data_hub.get(constant.FINISHED_VIDEOS)
+        self.videos = datahub.DataHub.get(constant.FINISHED_VIDEOS)
         total_pages = math.ceil(len(self.videos ) / self.cap_in_page)
 
         # 循环分页
@@ -165,7 +182,7 @@ class LibraryFrame:
             self.in_finished_mode = False
         
         # 动态刷新
-        self.videos = self.data_hub.get(constant.PROCESSING_VIDEOS)
+        self.videos = datahub.DataHub.get(constant.PROCESSING_VIDEOS)
         total_pages = math.ceil(len(self.videos ) / self.cap_in_page)
 
         # 循环设置
@@ -177,6 +194,21 @@ class LibraryFrame:
         self.display_title.set("处理中视频总数: " + str(len(self.videos)))
 
         self.display()
+
+    def upload_video(self):
+        print("Uploading Video")
+        video_path = filedialog.askopenfilename(title="选择视频", parent=self.right_main_plane)
+        if video_path is None or len(video_path) == 0:
+            return
+        datahub.DataHub.add_processing_video(video_path)
+        self.upload_info_var.set("> 视频:  %s 已添加至待处理队列中!" % (video_path.split("/")[-1],))
+        self.video_upload_tip_plane.place(relx=0.2, rely=0.8, relwidth=0.6, relheight=0.08)
+
+    def hidden_info_label(self, event):
+        """
+        隐藏提示信息, 简单方法
+        """
+        self.video_upload_tip_plane.place(relx=0, rely=0, relwidth=0, relheight=0)   # for hidden
 
     def display(self):
         """

@@ -21,15 +21,19 @@ class BBoxRecord:
     def __str__(self) -> str:
         return "[cls:%s, oid:%s, xcenter:%s, ycenter:%s, width:%s, height:%s]".format(str(self.cls), str(self.oid), str(self.xcenter), str(self.ycenter), str(self.width), str(self.height))
 
-def prepare_frames(videoName):
+def prepare_frames(
+    videoName,
+    video_path = None
+):
     """
     准备视频原始帧
     """
-    videoPath = os.path.join(get_relative_data_path(), "videos", videoName)
-    if not check_exists(videoPath):
-        raise Exception("Your video file [%s] is not exist in videos folder!".format(videoName))
-    else:
-        check_frames(videoName)
+    # # 取消将所有的视频放在一起
+    # videoPath = os.path.join(get_relative_data_path(), "videos", videoName) if video_path is None else video_path
+    # if not check_exists(videoPath):
+    #     raise Exception("Your video file [%s] is not exist in videos folder!".format(videoName))
+    # else:
+    check_frames(videoName, video_path)
 
 def prepare_labels(videoName, kick_dist_pixel_thres = 30):
     """

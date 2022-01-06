@@ -1,11 +1,14 @@
 """
 素材实体
 """
+from math import inf
 from tkinter import ttk
+import tkinter
 from PIL import Image, ImageTk
 
 from lib.constant import constant
 from lib.interface.common import slots
+from ..data import video
 
 class VideoCard:
     """
@@ -30,12 +33,10 @@ class VideoCard:
         self.pos = pos
         self.size = size
 
-        self.slots_hub = slots.SlotsHub()
-
         self.init_frame()
 
     def init_frame(self):
-        
+
         self.card = ttk.Frame(self.root)
         self.card.place(relx=self.pos[0], rely=self.pos[1], relwidth=self.size[0], relheight=self.size[1])
         self.card.config(style=constant.SHALLOW_FRAME_BACKGROUND_NAME)
@@ -44,16 +45,8 @@ class VideoCard:
         self.cover_plane = ttk.Frame(self.card)
         self.cover_plane.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=0.7)
         self.cover_plane.update()   # 先渲染之后才能得到对应的控件像素大小
-        plane_width = self.cover_plane.winfo_width()
-        plane_height = self.cover_plane.winfo_height()
-        
-        # 设置视频封面
-        self.cover_img = ImageTk.PhotoImage(image = self.video.get_cover_img().resize(size = (plane_width, plane_height)))
-        self.cover_label = ttk.Label(self.cover_plane, image=self.cover_img)
-        self.cover_label.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
-        self.cover_label.config(style=constant.DESC_TEXT_STYLE_NAME)
-        # 绑定双击事件
-        self.cover_label.bind("<Double-Button-1>", self.dbclick_play)
+        self.plane_width = self.cover_plane.winfo_width()
+        self.plane_height = self.cover_plane.winfo_height()
         
         # 标题
         self.title_plane = ttk.Frame(self.card)
@@ -62,12 +55,37 @@ class VideoCard:
         self.title_label.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
         self.title_label.config(style=constant.DESC_TEXT_STYLE_NAME)
 
-        # 时长
-        self.duration_plane = ttk.Frame(self.card)
-        self.duration_plane.place(relx=0.0, rely=0.85, relwidth=1.0, relheight=0.15)
-        self.duration_label = ttk.Label(self.duration_plane, text="帧数: " + str(self.video.get_frames()))
-        self.duration_label.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
-        self.duration_label.config(style=constant.DESC_TEXT_STYLE_NAME)
+        self.video.cover_update_handler = self.set_cover
+        self.video.status_update_handler = self.set_status_info
+        
+        if self.video.get_status() != video.Video.UNPROCESS:
+            self.set_cover()
+
+        # 状态或时长
+        self.video_info_var = tkinter.StringVar(value="时长(帧数): " + str(self.video.get_frames()))
+        self.video_info_plane = ttk.Frame(self.card)
+        self.video_info_plane.place(relx=0.0, rely=0.85, relwidth=1.0, relheight=0.15)
+        self.video_info_label = ttk.Label(self.video_info_plane, textvariable = self.video_info_var)
+        self.video_info_label.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
+        self.video_info_label.config(style=constant.DESC_TEXT_STYLE_NAME)
+
+    def set_cover(self):
+        """
+        设置封面
+        """
+        # 设置视频封面
+        self.cover_img = ImageTk.PhotoImage(image = self.video.get_cover_img().resize(size = (self.plane_width, self.plane_height)))
+        self.cover_label = ttk.Label(self.cover_plane, image=self.cover_img)
+        self.cover_label.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
+        self.cover_label.config(style=constant.DESC_TEXT_STYLE_NAME)
+        # 绑定双击事件
+        self.cover_label.bind("<Double-Button-1>", self.dbclick_play)
+
+    def set_status_info(self, info):
+        """
+        设置状态信息
+        """
+        self.video_info_var.set(info)
 
     def dbclick_play(
         self,
@@ -76,8 +94,8 @@ class VideoCard:
         """
         双击跳转至播放
         """
-        if self.video.get_status() == 1:
-            self.slots_hub.get_handler(constant.SWITCH_FRAME_EVENT)(constant.SWITCH_PLAYER_FRAME_CODE, video = self.video)
+        if self.video.get_status() == video.Video.FINISHED:
+            slots.SlotsHub.get_handler(constant.SWITCH_FRAME_EVENT)(constant.SWITCH_PLAYER_FRAME_CODE, video = self.video)
         else:
             print("请等待处理完毕")
 
