@@ -73,12 +73,10 @@ class Video:
         self.process_thread = wthread.WorkThread("video_process:"+self.name, self.process)
         self.process_thread.start()
 
-        self._exit_signal = False
-
         # 处理结果列表
         self.results_list = []
     
-    def process(self):
+    def process(self, stop_event):
         """
         在视频展示之间完成一些准备工作。
         已处理完成视频: 根据跟踪结果完成绘制所需要数据的生成
@@ -89,10 +87,13 @@ class Video:
             4. 写入文件
             5. 执行分队算法
             6. 处理完成 切换到处理完毕集合可以渲染 (TODO 有时间将处理完毕的结果同时写入文件或者数据库)
+        Args:
+            stop_event: 退出事件信号
         """
         if self.get_status() == Video.LOADED:
             self.build_labels()
             self.set_status(Video.FINISHED)
+            return
         else:
             # 1. 抽帧
             self.set_status(Video.EXTRACT)
@@ -118,15 +119,19 @@ class Video:
             self.set_status(Video.TRACKING)
             # 使用Client进行跟踪处理
             for (i, image_name) in enumerate(os.listdir(self.imgs_folder_name)):
-                if self._exit_signal:
+                
+                # 检查退出
+                if stop_event.is_set():
+                    self.client.close()
                     return
+                    
                 img_path = os.path.join(self.imgs_folder_name, image_name)
                 frame = cv2.imread(img_path)
                 self.client.send(i + 1, frame)
                 result = self.client.recv()
                 self.results_list.append(result)
 
-                print(i)
+                print(i, stop_event.is_set())
 
                 try:
                     if self.status_update_handler is not None: self.status_update_handler("状态: 跟踪处理 %d%%" % (int((i + 1) / self.get_frames() * 100), ))
@@ -138,15 +143,11 @@ class Video:
                 if self.status_update_handler is not None:  self.status_update_handler("状态: 中间数据处理")
             except Exception as e:
                 ...
+            
             self.set_status(Video.INTERMEDIATE)
 
             self.client.close()
             
-    def destroy(self):
-        print("Fuck Thread")
-        self._exit_signal = True
-        time.sleep(0.01)
-
     def get_name(self):
         """
         获取资源名称
@@ -300,3 +301,16 @@ class Video:
             self.cur_frame_num -= 1
 
         return frame
+
+    def destroy(self):
+
+        # 通知线程退出 清理资源
+        # `TODO ??? 理论上使用下面的循环代码才是正确的优雅通知线程关闭 但是这里会处于死循环 初步猜测就是因为Python的GIL导致 Player
+        # 中的draw线程也是如此`
+
+        # while self.process_thread.is_alive():
+        #     self.process_thread.stop()
+        #     time.sleep(0.1)
+
+        if self.process_thread.is_alive() and not self.process_thread.is_stop():
+            self.process_thread.stop()

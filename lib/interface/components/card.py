@@ -1,7 +1,6 @@
 """
 素材实体
 """
-from math import inf
 from tkinter import ttk
 import tkinter
 from PIL import Image, ImageTk

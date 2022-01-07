@@ -63,6 +63,10 @@ class DataHub:
         """
         销毁正在运行的工作线程
         """
-        for video in DataHub.__global_data_hub[constant.PROCESSING_VIDEOS]:
-            video.destroy()
+        if constant.PROCESSING_VIDEOS in DataHub.__global_data_hub:
+            for video in DataHub.__global_data_hub[constant.PROCESSING_VIDEOS]:
+                video.destroy()
+        if constant.FINISHED_VIDEOS in DataHub.__global_data_hub:
+            for video in DataHub.__global_data_hub[constant.FINISHED_VIDEOS]:
+                video.destroy()
     

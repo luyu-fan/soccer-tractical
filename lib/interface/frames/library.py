@@ -2,6 +2,7 @@
 素材库整理界面，主要包括的功能为展示所有的素材信息，即已经处理分析过的视频和正在后端处理的视频。
 Warning:线程不安全的素材库类。
 """
+import os, time
 import math
 import tkinter, tkinter.ttk as ttk
 from tkinter import filedialog
@@ -242,11 +243,9 @@ class LibraryFrame:
         """
         销毁视图和数据
         """
-        datahub.DataHub.destory()
-
         for card in self.display_cards_list:
             card.destory()
         self.top_level_frame.destroy()
-        
-        
+        datahub.DataHub.destory()
+        os._exit(0)
 

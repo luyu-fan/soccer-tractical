@@ -37,8 +37,6 @@ class PlayerFrame:
         self.should_display_bbox = False
         self.should_slow_slow_down = False
 
-        self._exit_signal = False
-
         self.__init__frame()
 
     def get_cur_video(self):
@@ -97,7 +95,7 @@ class PlayerFrame:
         self.back_label.bind("<Button-1>", self.back_library)
 
         # 防止关闭窗口产生孤儿线程 即线程泄漏
-        self.root.protocol("WM_DELETE_WINDOW", self.window_destory)
+        self.root.protocol("WM_DELETE_WINDOW", self.destroy_window)
 
         # ====================================================================================
         # start draw thread
@@ -148,44 +146,43 @@ class PlayerFrame:
         """
         返回素材库
         """
-        self._exit_signal = True
-        time.sleep(0.3)   # for thread exit
         self.destroy()
         slots.SlotsHub.get_handler(constant.SWITCH_FRAME_EVENT)(constant.SWITCH_LIBRARY_FRAME_CODE)
-
-    def window_destory(self):
-        """
-        关闭窗口触发事件
-        """
-        self._exit_signal = True
-        time.sleep(0.3)
-        self.top_level_frame.destroy()
-        os._exit(0)
-
-    def should_exit(self):
-        return self._exit_signal
 
     def destroy(self):
         """
         销毁和回收所有的控件和线程
         """
+        if self.draw_worker.is_alive() and not self.draw_worker.is_stop():
+            self.draw_worker.stop()
         self.top_level_frame.destroy()
 
-    def draw(self):
+    def destroy_window(self):
+        self.destroy()
+        os._exit(0)
+
+    def draw(self, stop_event):
         """
         将图像绘制到panel上 逐帧绘制的关键函数
         """
         cur_video = self.get_cur_video()
-        while True and not self.should_exit() and cur_video is not None:
-            # ≈ 35ms for one frame
-            frame = cur_video.get_one_rendered_frame(not self.should_auto_play, self.should_display_bbox)
-            if frame is None:
-                continue
-            else:
-                image = ImageTk.PhotoImage(image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
-                # avoiding shrinking
-                self.image_label.configure(image=image)
-                self.image_label.image = image
-            if self.should_slow_slow_down:
-                # for slow slow down: sleeping 300ms
-                time.sleep(0.3)
+        while cur_video is not None:
+            if stop_event.is_set():
+                return
+            try:
+                # ≈ 35ms for one frame
+                frame = cur_video.get_one_rendered_frame(not self.should_auto_play, self.should_display_bbox)
+                if frame is None:
+                    continue
+                else:
+                    image = ImageTk.PhotoImage(image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
+                    # avoiding shrinking
+                    self.image_label.configure(image=image)
+                    self.image_label.image = image
+                if self.should_slow_slow_down:
+                    # for slow slow down: sleeping 300ms
+                    time.sleep(0.3)
+            except Exception as e:
+                pass
+
+        
