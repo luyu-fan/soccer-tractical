@@ -51,6 +51,7 @@ class Video:
         self.video_status = status
         self.upload_video_path = upload_video_path
         self.imgs_folder_name = os.path.join(constant.DATA_ROOT, "images", self.name.split(".")[0])
+        self.labels_folder_name = os.path.join(constant.DATA_ROOT, "labels")
         self.total_frames = 0
         self.cover_img = None
 
@@ -83,91 +84,145 @@ class Video:
         """
         在视频展示之间完成一些准备工作。
         已处理完成视频: 根据跟踪结果完成绘制所需要数据的生成
-        新上传视频片段: 
+        新上传视频片段: 跟踪以及后续处理
+        Args:
+            stop_event: 退出事件信号
+        """
+        if self.get_status() == Video.LOADED:
+            self.process_loaded(stop_event)
+        else:
+            self.process_unprocess(stop_event)
+
+    def process_loaded(self, stop_event):
+        """
+        已跟踪处理过的视频
+        """
+        if stop_event.is_set():
+            return
+        self.build_labels()
+        self.set_status(Video.FINISHED)
+
+    def process_unprocess(self, stop_event):
+        """
+        处理新上传视频
+        流程:
             1. 视频抽帧
             2. 每帧视频服务器处理
             3. 中间结果整合
             4. 写入文件
             5. 执行分队算法
             6. 处理完成 切换到处理完毕集合可以渲染 (TODO 有时间将处理完毕的结果同时写入文件或者数据库)
-        Args:
-            stop_event: 退出事件信号
         """
-        if self.get_status() == Video.LOADED:
-            self.build_labels()
-            self.set_status(Video.FINISHED)
+        self.extract_frames()
+        if stop_event.is_set(): return
+        self.main_track(stop_event)
+        if stop_event.is_set(): return
+        # 3. 中间数据处理
+        # TODO 足球轨迹修正算法
+        try:
+            if self.status_update_handler is not None:  self.status_update_handler("状态: 中间数据处理")
+        except Exception as e:
+            ...
+        self.set_status(Video.INTERMEDIATE)
+        # 4. 自动颜色分队算法
+        self.coloring(stop_event)
+        if stop_event.is_set(): return
+        # 5. 写入label文件
+        self.save_labels()
+        self.set_status(Video.FINISHED)
+    
+    def extract_frames(self):
+        """
+        将视频转化为帧序列
+        """
+        # 1. 抽帧
+        self.set_status(Video.EXTRACT)
+        prepare.prepare_frames(self.name, video_path = self.upload_video_path)
+        # 无关紧要的状态更新使用异常机制包裹起来避免异常
+        try:
+            if self.cover_update_handler is not None: self.cover_update_handler()
+        except Exception as e:
+            ...
+
+    def main_track(self, stop_event):
+        """
+        跟踪主流程
+        """
+        # 2. 视频跟踪处理
+        try:
+            self.client.connect()
+        except Exception as e:
+            self.client.close()
             return
-        else:
-            # 1. 抽帧
-            self.set_status(Video.EXTRACT)
-            prepare.prepare_frames(self.name, video_path = self.upload_video_path)
-            # 无关紧要的状态更新使用异常机制包裹起来避免异常
-            try:
-                if self.cover_update_handler is not None: self.cover_update_handler()
-            except Exception as e:
-                ...
+
+        try:
+            if self.status_update_handler is not None: self.status_update_handler("状态: 跟踪处理 0%")
+        except Exception as e:
+            ...
+
+        self.set_status(Video.TRACKING)
+        # 使用Client进行跟踪处理
+        for (i, image_name) in enumerate(os.listdir(self.imgs_folder_name)):
             
-            # 2. 视频跟踪处理
-            try:
-                self.client.connect()
-            except Exception as e:
+            # 检查退出
+            if stop_event.is_set():
                 self.client.close()
                 return
-
-            try:
-                if self.status_update_handler is not None: self.status_update_handler("状态: 跟踪处理 0%")
-            except Exception as e:
-                ...
-
-            self.set_status(Video.TRACKING)
-            # 使用Client进行跟踪处理
-            for (i, image_name) in enumerate(os.listdir(self.imgs_folder_name)):
                 
-                # 检查退出
-                if stop_event.is_set():
-                    self.client.close()
-                    return
-                    
-                img_path = os.path.join(self.imgs_folder_name, image_name)
-                frame = cv2.imread(img_path)
-                self.client.send(i + 1, frame)
-                result = self.client.recv()
+            img_path = os.path.join(self.imgs_folder_name, image_name)
+            frame = cv2.imread(img_path)
+            self.client.send(i + 1, frame)
+            result = self.client.recv()
 
-                frame_result = []
-                player_result = result['player']
-                ball_result = result["ball"]
-                for bbox, oid in zip(player_result[0], player_result[1]):
-                    x1y1wh_box = ["", oid, int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
-                    frame_result.append(x1y1wh_box)
-                    # cv2.rectangle(frame, (x1y1wh_box[2], x1y1wh_box[3]), (x1y1wh_box[2] + x1y1wh_box[4], x1y1wh_box[3] + x1y1wh_box[5]), color=(23,45,67), thickness=2)
-                for bbox, oid in zip(ball_result[0], ball_result[1]):
-                    x1y1wh_box = ["Ball", oid, int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
-                    frame_result.append(x1y1wh_box)
-                    # cv2.rectangle(frame, (x1y1wh_box[2], x1y1wh_box[3]), (x1y1wh_box[2] + x1y1wh_box[4], x1y1wh_box[3] + x1y1wh_box[5]), color=(12,45,240), thickness=2)
-                self.results_list.append(frame_result)
-                # cv2.imshow("frame", frame)
-                # cv2.waitKey(2000)
-                # cv2.destroyAllWindows()
+            frame_result = []
+            player_result = result['player']
+            ball_result = result["ball"]
+            for bbox, oid in zip(player_result[0], player_result[1]):
+                x1y1wh_box = ["", oid, int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
+                frame_result.append(x1y1wh_box)
+                # cv2.rectangle(frame, (x1y1wh_box[2], x1y1wh_box[3]), (x1y1wh_box[2] + x1y1wh_box[4], x1y1wh_box[3] + x1y1wh_box[5]), color=(23,45,67), thickness=2)
+            for bbox, oid in zip(ball_result[0], ball_result[1]):
+                x1y1wh_box = ["Ball", oid, int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
+                frame_result.append(x1y1wh_box)
+                # cv2.rectangle(frame, (x1y1wh_box[2], x1y1wh_box[3]), (x1y1wh_box[2] + x1y1wh_box[4], x1y1wh_box[3] + x1y1wh_box[5]), color=(12,45,240), thickness=2)
+            self.results_list.append(frame_result)
+            # cv2.imshow("frame", frame)
+            # cv2.waitKey(2000)
+            # cv2.destroyAllWindows()
 
-                try:
-                    if self.status_update_handler is not None: self.status_update_handler("状态: 跟踪处理 %d%%" % (int((i + 1) / self.get_frames() * 100), ))
-                except Exception as e:
-                    ...
-
-            # 3. 中间数据处理
-            # TODO 足球轨迹修正算法
             try:
-                if self.status_update_handler is not None:  self.status_update_handler("状态: 中间数据处理")
+                if self.status_update_handler is not None: self.status_update_handler("状态: 跟踪处理 %d%%" % (int((i + 1) / self.get_frames() * 100), ))
             except Exception as e:
                 ...
-            
-            self.set_status(Video.INTERMEDIATE)
-            # 4. 自动颜色分队算法
-            # 先利用前若干帧中的对象形成的CN特征进行K-Means聚类，然后后续所有的对象目标计算与这个颜色中心的距离以此作为自己的队伍颜色划分
-            self.coloring()
 
-            self.client.close()
+        self.client.close()
+    
+    def save_labels(self):
+        """
+        保持处理好的标注, 下次直接使用
+        """
+        if not check_exists(self.labels_folder_name):
+            os.mkdir(self.labels_folder_name)
+        
+        label_file = os.path.join(self.labels_folder_name, self.name.split(".")[0] + ".txt")
+        with open(label_file, encoding="utf-8", mode="w") as f:
+            for (frame_id, frame_mot_result) in enumerate(self.results_list):
+                for i in range(len(frame_mot_result)):
+                    # frame_id,cls,oid,x1,y1,w,h
+                    record = str(frame_id) + "," + \
+                            frame_mot_result[i][0] +"," + \
+                            str(frame_mot_result[i][1]) +"," + \
+                            str(frame_mot_result[i][2]) +"," + \
+                            str(frame_mot_result[i][3]) +"," + \
+                            str(frame_mot_result[i][4]) +"," + \
+                            str(frame_mot_result[i][5]) + "\n"
+                    f.write(record)
 
+    def move_to_loaded(self):
+        """
+        移动至已处理队列
+        """
+    
     def coloring(self, stop_event):
         """
         根据CN特征对球员进行分队{A, B, C}
@@ -191,18 +246,18 @@ class Video:
                 else:
                     x1 = max(0, frame_mot_result[i][2])
                     y1 = max(0, frame_mot_result[i][3])
-                    x2 = x1 +frame_mot_result[i][4]
+                    x2 = x1 + frame_mot_result[i][4]
                     y2 = y1 + frame_mot_result[i][5]
                     obj_cn_rep = rgb2cn.get_img_mean_rep(frame[y1:y2, x1:x2, :].copy())
-                    print(obj_cn_rep.shape)
                     obj_cn_reps.append(obj_cn_rep)
 
         # TODO 选择全部的样本非常慢 实际上可以考虑采用部分目标进行K-Means聚类 剩余的部分仅仅根据聚类结果参与分配
+        # 先利用前若干帧中的对象形成的CN特征进行K-Means聚类，然后后续所有的对象目标计算与这个颜色中心的距离以此作为自己的队伍颜色划分
         kmeans = KMeans(n_clusters=2)
         kmeans.fit(obj_cn_reps)
 
-        print(kmeans.labels_)
-        print(kmeans.cluster_centers_)
+        # print(kmeans.labels_)
+        # print(kmeans.cluster_centers_)
 
         index = 0
         for frame_mot_result in self.results_list:
@@ -211,10 +266,14 @@ class Video:
                 if frame_mot_result[i][0] == "Ball":
                     continue
                 elif kmeans.labels_[i] == 0:
+                    # print("A")
                     frame_mot_result[i][0] = "A"   # 分配给A队
                 else:
                     frame_mot_result[i][0] = "B"   # 分配给B队
+                    # print("B")
                 index += 1
+
+        # print(self.results_list)
             
     def get_name(self):
         """
