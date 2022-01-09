@@ -5,8 +5,10 @@ import os
 import threading
 import cv2
 import time
+import numpy as np
 
 from PIL import Image
+from sklearn.cluster import KMeans
 
 from lib.constant import constant
 from lib.dataprocess import check_exists
@@ -15,6 +17,7 @@ from lib.render import render
 from lib.interaction import interaction
 from lib.utils import team_shape
 from lib.workthread import thread as wthread
+from lib.coloring import rgb2cn
 
 from lib.net import client
 
@@ -129,9 +132,22 @@ class Video:
                 frame = cv2.imread(img_path)
                 self.client.send(i + 1, frame)
                 result = self.client.recv()
-                self.results_list.append(result)
 
-                print(i, stop_event.is_set())
+                frame_result = []
+                player_result = result['player']
+                ball_result = result["ball"]
+                for bbox, oid in zip(player_result[0], player_result[1]):
+                    x1y1wh_box = ["", oid, int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
+                    frame_result.append(x1y1wh_box)
+                    # cv2.rectangle(frame, (x1y1wh_box[2], x1y1wh_box[3]), (x1y1wh_box[2] + x1y1wh_box[4], x1y1wh_box[3] + x1y1wh_box[5]), color=(23,45,67), thickness=2)
+                for bbox, oid in zip(ball_result[0], ball_result[1]):
+                    x1y1wh_box = ["Ball", oid, int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
+                    frame_result.append(x1y1wh_box)
+                    # cv2.rectangle(frame, (x1y1wh_box[2], x1y1wh_box[3]), (x1y1wh_box[2] + x1y1wh_box[4], x1y1wh_box[3] + x1y1wh_box[5]), color=(12,45,240), thickness=2)
+                self.results_list.append(frame_result)
+                # cv2.imshow("frame", frame)
+                # cv2.waitKey(2000)
+                # cv2.destroyAllWindows()
 
                 try:
                     if self.status_update_handler is not None: self.status_update_handler("状态: 跟踪处理 %d%%" % (int((i + 1) / self.get_frames() * 100), ))
@@ -139,14 +155,66 @@ class Video:
                     ...
 
             # 3. 中间数据处理
+            # TODO 足球轨迹修正算法
             try:
                 if self.status_update_handler is not None:  self.status_update_handler("状态: 中间数据处理")
             except Exception as e:
                 ...
             
             self.set_status(Video.INTERMEDIATE)
+            # 4. 自动颜色分队算法
+            # 先利用前若干帧中的对象形成的CN特征进行K-Means聚类，然后后续所有的对象目标计算与这个颜色中心的距离以此作为自己的队伍颜色划分
+            self.coloring()
 
             self.client.close()
+
+    def coloring(self, stop_event):
+        """
+        根据CN特征对球员进行分队{A, B, C}
+        步骤:
+        1. 获取每个目标的bbox区域内的图像
+        2. 获取目标图像每个像素值对应的CN
+        3. 将整幅图像所有CN的均值作为当前图像的CN代表
+        4. 利用K-means算法对所有目标的CN代表进行聚类，得到两个中心点(如果包括教练之类的外围目标的话那就是三个)
+        5. 根据每个点到聚类中心的距离为每个目标分配类别
+        """
+        # 目标的CN代表 二维矩阵 obj_num * cn_dim
+        obj_cn_reps = []
+        for frame_mot_result, image_name in zip(self.results_list, os.listdir(self.imgs_folder_name)):
+            # 加载图像
+            img_path = os.path.join(self.imgs_folder_name, image_name)
+            frame = cv2.imread(img_path)
+            for i in range(len(frame_mot_result)):
+                if stop_event.is_set(): return
+                if frame_mot_result[i][0] == "Ball":
+                    continue
+                else:
+                    x1 = max(0, frame_mot_result[i][2])
+                    y1 = max(0, frame_mot_result[i][3])
+                    x2 = x1 +frame_mot_result[i][4]
+                    y2 = y1 + frame_mot_result[i][5]
+                    obj_cn_rep = rgb2cn.get_img_mean_rep(frame[y1:y2, x1:x2, :].copy())
+                    print(obj_cn_rep.shape)
+                    obj_cn_reps.append(obj_cn_rep)
+
+        # TODO 选择全部的样本非常慢 实际上可以考虑采用部分目标进行K-Means聚类 剩余的部分仅仅根据聚类结果参与分配
+        kmeans = KMeans(n_clusters=2)
+        kmeans.fit(obj_cn_reps)
+
+        print(kmeans.labels_)
+        print(kmeans.cluster_centers_)
+
+        index = 0
+        for frame_mot_result in self.results_list:
+            for i in range(len(frame_mot_result)):
+                if stop_event.is_set(): return
+                if frame_mot_result[i][0] == "Ball":
+                    continue
+                elif kmeans.labels_[i] == 0:
+                    frame_mot_result[i][0] = "A"   # 分配给A队
+                else:
+                    frame_mot_result[i][0] = "B"   # 分配给B队
+                index += 1
             
     def get_name(self):
         """
