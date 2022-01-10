@@ -130,6 +130,10 @@ class Video:
         # 5. 写入label文件
         self.save_labels()
         self.set_status(Video.FINISHED)
+        try:
+            if self.status_update_handler is not None:  self.status_update_handler("状态: 处理完毕")
+        except Exception as e:
+            ...
     
     def extract_frames(self):
         """
@@ -235,6 +239,7 @@ class Video:
         """
         # 目标的CN代表 二维矩阵 obj_num * cn_dim
         obj_cn_reps = []
+        index = 0
         for frame_mot_result, image_name in zip(self.results_list, os.listdir(self.imgs_folder_name)):
             # 加载图像
             img_path = os.path.join(self.imgs_folder_name, image_name)
@@ -248,8 +253,9 @@ class Video:
                     y1 = max(0, frame_mot_result[i][3])
                     x2 = x1 + frame_mot_result[i][4]
                     y2 = y1 + frame_mot_result[i][5]
-                    obj_cn_rep = rgb2cn.get_img_mean_rep(frame[y1:y2, x1:x2, :].copy())
+                    obj_cn_rep = rgb2cn.get_img_mean_rep(frame[y1:y2, x1:x2, :].copy(), remove_green=True)
                     obj_cn_reps.append(obj_cn_rep)
+                    index += 1
 
         # TODO 选择全部的样本非常慢 实际上可以考虑采用部分目标进行K-Means聚类 剩余的部分仅仅根据聚类结果参与分配
         # 先利用前若干帧中的对象形成的CN特征进行K-Means聚类，然后后续所有的对象目标计算与这个颜色中心的距离以此作为自己的队伍颜色划分
@@ -265,7 +271,7 @@ class Video:
                 if stop_event.is_set(): return
                 if frame_mot_result[i][0] == "Ball":
                     continue
-                elif kmeans.labels_[i] == 0:
+                elif kmeans.labels_[index] == 0:
                     # print("A")
                     frame_mot_result[i][0] = "A"   # 分配给A队
                 else:

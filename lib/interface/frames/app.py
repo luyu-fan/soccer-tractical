@@ -58,7 +58,7 @@ class App:
         """
         # self-adjust: center
         self.window.geometry(str(self.W_WIDTH) + "x" + str(self.W_HEIGHT) + "+" + str((self.window.winfo_screenwidth() - self.W_WIDTH) // 2) + "+" 
-        + str((self.window.winfo_screenheight() - self.W_HEIGHT) // 2))
+        + str(int((self.window.winfo_screenheight() - self.W_HEIGHT) // 2.2)))
 
         # init welcome
         self.switch_window(constant.SWITCH_WELCOME_FRAME_CODE)

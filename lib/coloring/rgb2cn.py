@@ -45,7 +45,7 @@ def get_color_prob_batch(rgbs):
     return __c2n_table[indexes]
 
 
-def get_img_mean_rep(img):
+def get_img_mean_rep(img, remove_green = False):
     """
     获得图像的CN均值
     Args:
@@ -56,6 +56,10 @@ def get_img_mean_rep(img):
     img = np.reshape(img, (h * w, c))
 
     rgb_cns = get_color_prob_batch(img)
+
+    if remove_green:
+        rgb_cns = np.concatenate((rgb_cns[:, :4], rgb_cns[:, 5:]), axis=1)
+    
     mean_rep = np.mean(rgb_cns, axis=0)
     return mean_rep
 
