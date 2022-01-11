@@ -89,10 +89,10 @@ class PlayerFrame:
         self.slow_slow_checkbox = ttk.Checkbutton(self.control_pannel, text="Slowly", variable=self.slow_slow_check_IntVar, command=self.slow_slow_down)
         self.slow_slow_checkbox.place(relx=0.53, rely=0.25, relwidth=0.06, relheight=0.5)
 
-        self.back_label = ttk.Label(self.top_level_frame, text="BACK", anchor="center")
-        self.back_label.place(relx=0.9, rely=0.9, relwidth=0.1, relheight=0.1)
-        self.back_label.config(style=constant.DESC_TEXT_STYLE_NAME)
-        self.back_label.bind("<Button-1>", self.back_library)
+        self.back_label = ttk.Button(self.control_pannel, text="返回", command=self.back_library)
+        self.back_label.place(relx=0.91, rely=0.25, relwidth=0.08, relheight=0.5)
+        # self.back_label.config(style=constant.DESC_TEXT_STYLE_NAME)
+        # self.back_label.bind("<Button-1>", self.back_library)
 
         # 防止关闭窗口产生孤儿线程 即线程泄漏
         self.root.protocol("WM_DELETE_WINDOW", self.destroy_window)
@@ -100,6 +100,14 @@ class PlayerFrame:
         # ====================================================================================
         # start draw thread
         self.draw_worker.start()
+
+    def get_image_resize(self):
+        """
+        在绘制时获取展示窗口的像素大小
+        """
+        width = self.image_label.winfo_width()
+        height = self.image_label.winfo_height()
+        return (width, height)
 
     def auto_play(self):
         self.should_auto_play = True
@@ -140,8 +148,7 @@ class PlayerFrame:
         self.should_slow_slow_down = (self.slow_slow_check_IntVar.get() == 1)
 
     def back_library(
-        self, 
-        event
+        self,
     ):
         """
         返回素材库
@@ -175,6 +182,8 @@ class PlayerFrame:
                 if frame is None:
                     continue
                 else:
+                    # 简单自适应播放窗口大小 (TODO 需要考虑比例情况)
+                    frame = cv2.resize(frame, self.get_image_resize(), cv2.INTER_CUBIC)
                     image = ImageTk.PhotoImage(image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
                     # avoiding shrinking
                     self.image_label.configure(image=image)
