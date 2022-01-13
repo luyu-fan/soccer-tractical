@@ -119,6 +119,8 @@ class Video:
         if stop_event.is_set(): return
         # 3. 中间数据处理
         # TODO 足球轨迹修正算法
+        # 1. 使用滑窗判断和插值
+        # 2. 使用状态机
         try:
             if self.status_update_handler is not None:  self.status_update_handler("状态: 中间数据处理")
         except Exception as e:
