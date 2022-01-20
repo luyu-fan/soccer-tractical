@@ -3,3 +3,7 @@ __pycache__
 assets
 datasets
 ttkthemes
+
+*.jpg
+*.png
+*.pkl

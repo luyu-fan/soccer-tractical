@@ -2,10 +2,10 @@
 对视频片段数据及处理的封装
 """
 import os
+import pickle
 import threading
+from typing import Iterable
 import cv2
-import time
-import numpy as np
 
 from PIL import Image
 from sklearn.cluster import KMeans
@@ -18,9 +18,335 @@ from lib.interaction import interaction
 from lib.utils import team_shape
 from lib.workthread import thread as wthread
 from lib.coloring import rgb2cn
-
+ 
 from lib.net import client
 
+class FSM:
+    """
+    用于数据自动处理的有限状态机
+    """
+    START = 0
+    SEEK = 1
+    CANDIDATE = 2
+    FIX = 3
+    FINISH = 4
+    
+    def __init__(
+        self,
+        window_size = 10,
+        activate_thres = 0.6,
+        frames_result = None,
+    ) -> None:
+        """
+        Args:
+            window_size: 状态机搜素的时间窗口
+            activate_thres: 由候选状态转变为确定状态的阈值
+            frames_result: 所有的帧数据
+        """
+
+        assert isinstance(frames_result, Iterable)
+        
+        # 状态字典
+        self.window = Window(frames_result, window_size, activate_thres)
+        self.states_map = {
+            FSM.SEEK: SeekState(),
+            FSM.CANDIDATE: CandidateState(),
+            FSM.FIX: FixState(),
+        }
+
+    def run(self):
+        """
+        FSM后修复检测的主循环
+        """
+        next_state_name = FSM.SEEK
+        while True:
+            cur_state = self.states_map[next_state_name]
+            next_state_name = cur_state.do(self.window)
+            if next_state_name == FSM.FINISH:
+                return
+            
+class Window:
+
+    def __init__(
+        self,
+        frames_result,
+        size,
+        activate_thres,
+    ) -> None:
+
+        assert isinstance(frames_result, Iterable)
+
+        # 所有帧的结果数组
+        self.frames_result = frames_result
+        self.total_num = len(frames_result)
+        # 窗口大小
+        self.size = size
+        # 候选激活比例阈值
+        self.activate_thres = activate_thres
+        # 相对于全部检测帧的起始位置
+        self.start_index = 0
+        # 最新的已经处于修复之后的索引
+        self.fixed_index = 0
+        # 修复所用到的关键检测索引
+        self.anchor_index = None
+
+    def get_total_result_num(self):
+        return self.total_num
+
+    def check_linear_neighbor(
+        self,
+        i,
+        dxdy,
+        j,         
+    ):
+        """
+        检查是否符合线性位置
+        Args:
+            i: 窗口内第i个检测
+            dxdy: 以第i个检测为anchor时的变化量
+            j: 第j个检测
+        """
+        if i == j: return True
+        elif i < j:
+            x_dist = self.frames_result[j][2] - self.frames_result[i][2]
+            y_dist = self.frames_result[j][3] - self.frames_result[i][3]
+        else:
+            x_dist = self.frames_result[i][2] - self.frames_result[j][2]
+            y_dist = self.frames_result[i][3] - self.frames_result[j][3]
+        if x_dist <= (abs(j - i) * dxdy[0] + self.frames_result[i][4]) and y_dist <= (abs(j - i) * dxdy[1] + self.frames_result[i][5]):
+            return True
+        else:
+            return False
+            
+    def get_det(self, index):
+        """
+        获取指定位置的检测结果
+        """
+        if index < self.total_num:
+            return self.frames_result[index]
+        else:
+            raise IndexError
+
+    def get_start_index(self):
+        """
+        返回当前的起始索引
+        """
+        return self.start_index
+
+    def move(
+        self,
+        step = 1,
+    ):
+        """
+        移动窗口
+        """
+        self.start_index += step 
+        # self.inner_array = self.frames_result[self.start_index:self.start_index + self.size]
+
+    def calc_dxdy(self, det_t_1, det_t):
+        """
+        计算相邻两个检测的中心点的dxdy 实际上为水平和竖直方向上的移动速度
+        Args:
+            det_t_1: t-1时刻的检测 x1y1wh
+            det_t: t时刻的检测
+        TODO 此处仅仅考虑两个位置 后续可以考虑更准确的形式
+        """
+        dx = det_t[2] - det_t_1[2]
+        dy = det_t[3] - det_t_1[3]
+        return [dx, dy]
+
+    def get_activate_thres(self):
+        return self.activate_thres
+
+    def config_fix(
+        self,
+        anchor_index,
+        dxdy,
+    ):
+        """
+        配置修复时所需要的一些必要数据
+        Args:
+            anchor_index: 最佳的用于修正轨迹采用的锚检测位置
+            dxdy: anchor对应的变化速度
+        """
+        self.anchor_index = anchor_index
+        self.anchor_dxdy = dxdy
+
+    def discard_det(self, index):
+        """
+        抛弃index位置的检测，前提是这个检测并不处于前一个检测窗口中
+        """
+        self.frames_result[index] = None
+
+    def fix(self, index):
+        """
+        尝试性修复窗口内的某个检测结果
+        """
+        if self.frames_result[index] is None or \
+            not self.check_linear_neighbor(self.anchor_index, self.anchor_dxdy, index):
+            if index > self.anchor_index:
+                x1 = self.frames_result[self.anchor_index][2] + self.anchor_dxdy[0] * (index - self.anchor_index)
+                y1 = self.frames_result[self.anchor_index][3] + self.anchor_dxdy[1] * (index - self.anchor_index)
+                w = self.frames_result[self.anchor_index][4]
+                h = self.frames_result[self.anchor_index][5]
+                # 产生一个修复后的检测框
+                pre = self.frames_result[index]
+                self.frames_result[index] = ["Ball", 1, x1, y1, w, h]
+                # print("Fix:", pre, self.frames_result[index])
+            else:
+                x1 = self.frames_result[self.anchor_index][2] - self.anchor_dxdy[0] * (index - self.anchor_index)
+                y1 = self.frames_result[self.anchor_index][3] - self.anchor_dxdy[1] * (index - self.anchor_index)
+                w = self.frames_result[self.anchor_index][4]
+                h = self.frames_result[self.anchor_index][5]
+                # 产生一个修复后的检测框
+                pre = self.frames_result[index]
+                self.frames_result[index] = ["Ball", 1, x1, y1, w, h]
+                # print("Fix:", pre, self.frames_result[index])
+        else:
+            return
+
+class ProcessState:
+    """
+    后处理的状态父类
+    """
+    def __init__(
+        self,
+    ):
+        ...
+
+    def do(self, window):
+        raise NotImplemented
+
+class SeekState(ProcessState):
+    """
+    寻找一个合适的窗口 使其处于候状态
+    最简单的状态 实际上就是找到一个以非空检测结果为开始的窗口。
+    """
+    def __init__(self):
+        super(SeekState, self).__init__()
+
+    def do(self, window):
+        """
+        寻找合适窗口并激活的处理逻辑
+        """
+        assert isinstance(window, Window)
+
+        # 找到第一个非空检测即可
+        probe_index = window.get_start_index()
+        while probe_index < window.get_total_result_num():
+            det =  window.get_det(probe_index)
+            if det is not None:
+                window.move(probe_index - window.get_start_index())
+                return FSM.CANDIDATE
+            else:
+                probe_index  += 1
+        
+        return FSM.FINISH
+
+class CandidateState(ProcessState):
+    """
+    判断当前窗口内的各个检测时候能够构成一段稳定的轨迹
+    具体方法是通过循环计算各个检测于其它检测的距离
+    计算过程为O(n2)复杂度
+    1. 首先需要利用t和t-1时刻的位置计算两侧偏移的速度，两个方向。
+    2. 根据相应的检测所对应的位置索引，计算对应检测是否满足线性关系，即在一定的范围内。
+    3. 统计各个检测所构成的满足线性要求的比例，超过一定的比例则满足激活。
+    4. 以最大比例的检测为锚，进入到修正环节。 
+    """
+    def __init__(self):
+        super(CandidateState, self).__init__()
+
+    def do(self, window):
+        """
+        寻找合适窗口并激活的处理逻辑
+        """
+        assert isinstance(window, Window)
+
+        # 窗口中实际容量仅为1
+        if window.get_start_index() >= window.get_total_result_num() - 1:
+            # 忽略掉直接返回完成状态
+            # TODO 应该考虑更详细的边界情况
+            return FSM.FINISH
+
+        max_rate = -1
+        max_index = -1
+        best_dxdy = None
+
+        start = window.get_start_index()
+        end = min(start + window.size, window.get_total_result_num())
+        for i in range(start, end):
+            if window.frames_result[i] is None: continue
+            # 处理边界条件
+            if i == start:
+                # 窗口的左侧
+                if window.frames_result[i + 1] is None:
+                    continue
+                else:
+                    dxdy = window.calc_dxdy(window.frames_result[i], window.frames_result[i + 1])
+            elif i == end - 1:
+                # 窗口的右侧
+                if window.frames_result[i - 1] is None:
+                    continue
+                else:
+                    dxdy = window.calc_dxdy(window.frames_result[i - 1], window.frames_result[i])
+            else:
+                # 中间位置
+                if window.frames_result[i - 1] is None and window.frames_result[i + 1] is None:
+                    continue
+                elif window.frames_result[i - 1] is not None:
+                    dxdy = window.calc_dxdy(window.frames_result[i - 1], window.frames_result[i])
+                else:
+                    dxdy = window.calc_dxdy(window.frames_result[i], window.frames_result[i + 1])
+
+            # 迭代计算是否符合线性模型
+            checked_calculator = 0
+            for j in range(start, end):
+                if window.frames_result[j] is None: continue
+                if window.check_linear_neighbor(i, dxdy, j):
+                    checked_calculator += 1
+            
+            # 符合线性条件的比例
+            rate = (checked_calculator / (end - start))
+            if rate >= window.get_activate_thres() and rate > max_rate:
+                max_rate = rate
+                max_index = i
+                best_dxdy = dxdy
+
+        # 如果当前窗口满足轨迹的连续性则返回修复状态 否则丢弃窗口左侧的检测进行下一个窗口探测
+        if best_dxdy is not None:
+            window.config_fix(max_index, best_dxdy)
+            return FSM.FIX
+        else:
+            window.discard_det(window.get_start_index())
+            return FSM.SEEK
+
+class FixState(ProcessState):
+    """
+    修复状态，以锚检测所在位置为准进行修正，即将窗口内为空或者为不满足线性条件的检测进行修正和替换。
+    时间复杂度为O(n)
+    修正的同时需要标记窗口内的每一个候选框。同时将seek指针移动到窗口的60%处，使其能够进行下一轮修复。
+    """
+    def __init__(self):
+        super(FixState, self).__init__()
+
+    def do(self, window):
+        """
+        在窗口内按照指定的anchor进行修复，由于此时需要进行修改数据，因此需要在原始的传入的数组上进行修改
+        """
+        assert isinstance(window, Window)
+
+        start_index = window.get_start_index()
+        end = min(start_index + window.size, window.total_num)
+        for k in range(start_index, end):
+            # 对第k个进行尝试性修复
+            window.fix(k)
+            if window.fixed_index < k:
+                window.fixed_index = k
+                
+        # 移动窗口
+        window.move(window.size // 2 + 1)
+        return FSM.SEEK
+        
 class Video:
 
     LOADED = 0                     # 可直接播放的分析视频已加载
@@ -78,7 +404,8 @@ class Video:
         self.process_thread.start()
 
         # 处理结果列表
-        self.results_list = []
+        self.players_list = []
+        self.ball_list = []
     
     def process(self, stop_event):
         """
@@ -113,23 +440,26 @@ class Video:
             5. 执行分队算法
             6. 处理完成 切换到处理完毕集合可以渲染 (TODO 有时间将处理完毕的结果同时写入文件或者数据库)
         """
+        # 1.视频抽帧
         self.extract_frames()
         if stop_event.is_set(): return
-        self.main_track(stop_event)
-        if stop_event.is_set(): return
-        # 3. 中间数据处理
-        # TODO 足球轨迹修正算法
-        # 1. 使用滑窗判断和插值
-        # 2. 使用状态机
-        # 3. 在一个窗口内前后不同方向都需要搜素。
+        
+        # 2. 每帧视频服务器处理
+        # self.main_track(stop_event)
+        # if stop_event.is_set(): return
+
+        # 3. 中间数据后处理
         try:
             if self.status_update_handler is not None:  self.status_update_handler("状态: 中间数据处理")
         except Exception as e:
             ...
         self.set_status(Video.INTERMEDIATE)
+        self.process_data()
+
         # 4. 自动颜色分队算法
         self.coloring(stop_event)
         if stop_event.is_set(): return
+
         # 5. 写入label文件
         self.save_labels()
         self.set_status(Video.FINISHED)
@@ -183,16 +513,23 @@ class Video:
 
             frame_result = []
             player_result = result['player']
-            ball_result = result["ball"]
             for bbox, oid in zip(player_result[0], player_result[1]):
                 x1y1wh_box = ["", oid, int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
                 frame_result.append(x1y1wh_box)
                 # cv2.rectangle(frame, (x1y1wh_box[2], x1y1wh_box[3]), (x1y1wh_box[2] + x1y1wh_box[4], x1y1wh_box[3] + x1y1wh_box[5]), color=(23,45,67), thickness=2)
+            self.players_list.append(frame_result)
+
+            frame_result = []
+            ball_result = result["ball"]
             for bbox, oid in zip(ball_result[0], ball_result[1]):
                 x1y1wh_box = ["Ball", oid, int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
                 frame_result.append(x1y1wh_box)
                 # cv2.rectangle(frame, (x1y1wh_box[2], x1y1wh_box[3]), (x1y1wh_box[2] + x1y1wh_box[4], x1y1wh_box[3] + x1y1wh_box[5]), color=(12,45,240), thickness=2)
-            self.results_list.append(frame_result)
+            if len(frame_result) == 0:
+                frame_result.append(None)
+            # 仅仅使用一个检测结果作为当前帧的代表
+            self.ball_list.append(frame_result[0])
+
             # cv2.imshow("frame", frame)
             # cv2.waitKey(2000)
             # cv2.destroyAllWindows()
@@ -213,7 +550,8 @@ class Video:
         
         label_file = os.path.join(self.labels_folder_name, self.name.split(".")[0] + ".txt")
         with open(label_file, encoding="utf-8", mode="w") as f:
-            for (frame_id, frame_mot_result) in enumerate(self.results_list):
+            for (frame_id, frame_mot_result) in enumerate(self.players_list):
+                # players
                 for i in range(len(frame_mot_result)):
                     # frame_id,cls,oid,x1,y1,w,h
                     record = str(frame_id) + "," + \
@@ -224,6 +562,37 @@ class Video:
                             str(frame_mot_result[i][4]) +"," + \
                             str(frame_mot_result[i][5]) + "\n"
                     f.write(record)
+                # ball
+                if self.ball_list[frame_id] is not None:
+                    record = str(frame_id) + "," + \
+                            self.ball_list[frame_id][0] +"," + \
+                            str(self.ball_list[frame_id][1]) +"," + \
+                            str(self.ball_list[frame_id][2]) +"," + \
+                            str(self.ball_list[frame_id][3]) +"," + \
+                            str(self.ball_list[frame_id][4]) +"," + \
+                            str(self.ball_list[frame_id][5]) + "\n"
+                    f.write(record)
+                    
+    def process_data(self):
+        """
+        利用有限状态机对足球轨迹进行修正
+        """
+        # result = {
+        #     "player": self.players_list,
+        #     "ball": self.ball_list,
+        # }
+        # with open("result.pkl", mode="wb") as f:
+        #     pickle.dump(result, f)
+        # print("服务器处理结果已写入文件")
+
+        with open("result.pkl", mode="rb") as f:
+            result = pickle.load(f)
+
+        self.ball_list = result["ball"]
+        self.players_list = result['player']
+        
+        fsm = FSM(frames_result=self.ball_list)
+        fsm.run()
 
     def move_to_loaded(self):
         """
@@ -242,23 +611,18 @@ class Video:
         """
         # 目标的CN代表 二维矩阵 obj_num * cn_dim
         obj_cn_reps = []
-        index = 0
-        for frame_mot_result, image_name in zip(self.results_list, os.listdir(self.imgs_folder_name)):
+        for frame_mot_result, image_name in zip(self.players_list, os.listdir(self.imgs_folder_name)):
             # 加载图像
             img_path = os.path.join(self.imgs_folder_name, image_name)
             frame = cv2.imread(img_path)
             for i in range(len(frame_mot_result)):
                 if stop_event.is_set(): return
-                if frame_mot_result[i][0] == "Ball":
-                    continue
-                else:
-                    x1 = max(0, frame_mot_result[i][2])
-                    y1 = max(0, frame_mot_result[i][3])
-                    x2 = x1 + frame_mot_result[i][4]
-                    y2 = y1 + frame_mot_result[i][5]
-                    obj_cn_rep = rgb2cn.get_img_mean_rep(frame[y1:y2, x1:x2, :].copy(), remove_green=True)
-                    obj_cn_reps.append(obj_cn_rep)
-                    index += 1
+                x1 = max(0, frame_mot_result[i][2])
+                y1 = max(0, frame_mot_result[i][3])
+                x2 = x1 + frame_mot_result[i][4]
+                y2 = y1 + frame_mot_result[i][5]
+                obj_cn_rep = rgb2cn.get_img_mean_rep(frame[y1:y2, x1:x2, :].copy(), remove_green=True)
+                obj_cn_reps.append(obj_cn_rep)
 
         # TODO 选择全部的样本非常慢 实际上可以考虑采用部分目标进行K-Means聚类 剩余的部分仅仅根据聚类结果参与分配
         # 先利用前若干帧中的对象形成的CN特征进行K-Means聚类，然后后续所有的对象目标计算与这个颜色中心的距离以此作为自己的队伍颜色划分
@@ -267,22 +631,17 @@ class Video:
 
         # print(kmeans.labels_)
         # print(kmeans.cluster_centers_)
-
         index = 0
-        for frame_mot_result in self.results_list:
+        for frame_mot_result in self.players_list:
             for i in range(len(frame_mot_result)):
                 if stop_event.is_set(): return
-                if frame_mot_result[i][0] == "Ball":
-                    continue
-                elif kmeans.labels_[index] == 0:
+                if kmeans.labels_[index] == 0:
                     # print("A")
                     frame_mot_result[i][0] = "A"   # 分配给A队
                 else:
                     frame_mot_result[i][0] = "B"   # 分配给B队
                     # print("B")
                 index += 1
-
-        # print(self.results_list)
             
     def get_name(self):
         """
