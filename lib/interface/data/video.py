@@ -2,7 +2,6 @@
 对视频片段数据及处理的封装
 """
 import os
-import pickle
 import threading
 from typing import Iterable
 import cv2
@@ -18,6 +17,8 @@ from lib.interaction import interaction
 from lib.utils import team_shape
 from lib.workthread import thread as wthread
 from lib.coloring import rgb2cn
+
+from lib.interface.common import datahub
  
 from lib.net import client
 
@@ -445,8 +446,8 @@ class Video:
         if stop_event.is_set(): return
         
         # 2. 每帧视频服务器处理
-        # self.main_track(stop_event)
-        # if stop_event.is_set(): return
+        self.main_track(stop_event)
+        if stop_event.is_set(): return
 
         # 3. 中间数据后处理
         try:
@@ -462,11 +463,14 @@ class Video:
 
         # 5. 写入label文件
         self.save_labels()
-        self.set_status(Video.FINISHED)
         try:
             if self.status_update_handler is not None:  self.status_update_handler("状态: 处理完毕")
         except Exception as e:
             ...
+
+        # 6. 移动到不同的队列中
+        self.set_status(Video.FINISHED)
+        self.move_to_loaded()
     
     def extract_frames(self):
         """
@@ -585,19 +589,24 @@ class Video:
         #     pickle.dump(result, f)
         # print("服务器处理结果已写入文件")
 
-        with open("result.pkl", mode="rb") as f:
-            result = pickle.load(f)
+        # with open("result.pkl", mode="rb") as f:
+        #     result = pickle.load(f)
 
-        self.ball_list = result["ball"]
-        self.players_list = result['player']
+        # self.ball_list = result["ball"]
+        # self.players_list = result['player']
         
-        fsm = FSM(frames_result=self.ball_list)
+        fsm = FSM(
+            window_size=10,
+            activate_thres=0.6,
+            frames_result=self.ball_list,
+        )
         fsm.run()
 
     def move_to_loaded(self):
         """
         移动至已处理队列
         """
+        datahub.DataHub.move(self)
     
     def coloring(self, stop_event):
         """
@@ -626,21 +635,36 @@ class Video:
 
         # TODO 选择全部的样本非常慢 实际上可以考虑采用部分目标进行K-Means聚类 剩余的部分仅仅根据聚类结果参与分配
         # 先利用前若干帧中的对象形成的CN特征进行K-Means聚类，然后后续所有的对象目标计算与这个颜色中心的距离以此作为自己的队伍颜色划分
-        kmeans = KMeans(n_clusters=2)
+        kmeans = KMeans(n_clusters=3)
         kmeans.fit(obj_cn_reps)
 
         # print(kmeans.labels_)
         # print(kmeans.cluster_centers_)
+
+        # 根据具体数量来划分ABC
+        counters = {
+            0: 0,
+            1: 0,
+            2: 0
+        }
+        for l in kmeans.labels_:
+            counters[l] += 1
+        
+        sorted_keys = sorted(counters, key= lambda x: -counters[x])
+        # print(counters, sorted_keys)
+
         index = 0
         for frame_mot_result in self.players_list:
             for i in range(len(frame_mot_result)):
                 if stop_event.is_set(): return
-                if kmeans.labels_[index] == 0:
+                if kmeans.labels_[index] == sorted_keys[0]:
                     # print("A")
                     frame_mot_result[i][0] = "A"   # 分配给A队
-                else:
+                elif kmeans.labels_[index] == sorted_keys[1]:
                     frame_mot_result[i][0] = "B"   # 分配给B队
                     # print("B")
+                else:
+                    frame_mot_result[i][0] = "J"   # 分配给J队
                 index += 1
             
     def get_name(self):

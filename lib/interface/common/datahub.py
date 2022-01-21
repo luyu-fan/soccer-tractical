@@ -69,4 +69,20 @@ class DataHub:
         if constant.FINISHED_VIDEOS in DataHub.__global_data_hub:
             for video in DataHub.__global_data_hub[constant.FINISHED_VIDEOS]:
                 video.destroy()
+
+    @staticmethod
+    def move(finish_video):
+        """
+        仅仅将未处理队列中的video移动到已处理队列中以供播放
+        TODO 考虑增加互斥锁
+        TODO 考虑使用数据库
+        """
+        DataHub.__global_data_hub[constant.FINISHED_VIDEOS].append(video.Video(finish_video.name, status=video.Video.LOADED))
+        DataHub.__global_data_hub[constant.PROCESSING_VIDEOS].remove(finish_video)
+        with open("./datasets/record/finished.txt", mode="r") as f:
+            for line in f.readlines():
+                if finish_video.name == line[:-1]:
+                    return
+        with open("./datasets/record/finished.txt", mode="a") as f:
+            f.write(finish_video.name + "\n")
     
