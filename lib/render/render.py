@@ -7,6 +7,13 @@ from ..dataprocess import prepare as prepare
 
 # font_style = ImageFont.truetype("./assets/SimHei.ttf", 12, encoding="utf-8")
 
+def renderArrow(frame, src, dst, color = (32, 64, 96)):
+    src_point = (int(src.xcenter), int(src.ycenter))
+    dst_point = (int(dst.xcenter + (dst.xcenter - src.xcenter) * 4), int(dst.ycenter + (dst.ycenter - src.ycenter) * 4))
+    frame = cv2.arrowedLine(frame, src_point, dst_point, color=color, thickness=2,line_type=cv2.LINE_AA)
+    frame = cv2.circle(frame, src_point, radius=8, color=color, thickness=-1)
+    return frame
+
 def renderRRectLabel_batch(frame, bbox_records, color = (130, 0, 168), font_color = (255, 255, 255), label_width = 68, label_height = 20):
     """
     在指定的bbox位置上绘制多个圆角矩形标签框 绘制在对bbox的顶部
@@ -15,7 +22,7 @@ def renderRRectLabel_batch(frame, bbox_records, color = (130, 0, 168), font_colo
         bbox_records: bbox的记录框 一个或多个
         label_width: 标签的像素宽度
         label_height: 标签的像素高度
-    Return：
+    Return:
         frame: 修改完毕之后的视频帧
     """
     render_rects_info = []

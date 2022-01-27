@@ -765,21 +765,26 @@ class Video:
         frame = cv2.imread(img_path)
         ball = frame_record["ball"]
         cur_kicker = frame_record["kicker"]
+        probe_kicker = None
         if ball is not None:
+            
             # 6 显示bbox
             if show_bbox:
                 frame = render.renderBbox_batch(frame, frame_record["bbox"])
 
-            # print("==>", frame_record["ball"].xcenter, frame_record["ball"].ycenter)
             # 1. 将识别到的足球给绘制出来. 标明位置
             frame = render.renderRRectLabel_batch(frame, [ball], color=(36,36,36))
+            
             # 5. 在ttl帧数窗口内探测下一个kicker
             if self.probe_kicker_up_frame_num > self.cur_frame_num:
+                # 还没有超过probe_kicker的位置直接从bbox列表中获取即可
                 for bbox in frame_record["bbox"]:
                     if (self.probe_kicker_oid == bbox.oid and self.probe_kicker_cls == bbox.cls):
-                        frame = render.renderRRectLabel_batch(frame, [bbox], color=(0, 0, 255), font_color=(0, 0, 0), label_width=96, label_height=30)
+                        probe_kicker = bbox
+                        frame = render.renderRRectLabel_batch(frame, [probe_kicker], color=(0, 0, 255), font_color=(0, 0, 0), label_width=96, label_height=30)
                         break
             else:
+                # 往前探测
                 frame_probe_num = self.cur_frame_num + 1
                 probe_ttl = self.PROBE_TTL
                 while probe_ttl > 0 and (frame_probe_num in self.labels_dict.keys()):
@@ -799,6 +804,7 @@ class Video:
                     probe_ttl -= 1
 
             if cur_kicker is not None:
+                
                 # 3. 将当前帧kicker的周围按照范围将所有的对象检测出来 绘制战术进攻阵型或者防守阵型 显然这里速度很慢 需要批处理 可以看作是一个凸包
                 surroundings = interaction.find_surroundings(cur_kicker, frame_record["bbox"], surrounding_max_dist_thres=self.SURROUNDING_MAX_DIST_THRES)
 
@@ -814,6 +820,16 @@ class Video:
 
                 # 2. 如果当前帧存在kicker 则将当前帧的kicker给绘制出来
                 frame = render.renderRRectLabel_batch(frame, [cur_kicker], color=(255, 255, 255), font_color=(0, 0, 0), label_width=96, label_height=30)
+
+                # 7. 绘制kicker和下一个kicker运动速度示意 以2帧后的位置为目标位置
+                if self.cur_frame_num + 2 < self.total_frames:
+                    dst_frame_record = self.labels_dict[self.cur_frame_num + 2]
+                    for bbox in dst_frame_record["bbox"]:
+                        if cur_kicker.oid == bbox.oid and cur_kicker.cls == bbox.cls:
+                            frame = render.renderArrow(frame, cur_kicker, bbox, color = (12,34,180))
+                        elif probe_kicker is not None and probe_kicker.oid == bbox.oid and probe_kicker.cls == bbox.cls:
+                            frame = render.renderArrow(frame, probe_kicker, bbox, color = (96,6,90))
+
 
         self.cur_frame_num += 1
         if do_not_incr:
