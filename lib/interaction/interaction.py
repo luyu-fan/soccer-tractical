@@ -17,7 +17,8 @@ def find_surroundings(target, bboxes, surrounding_min_dist_thres = 0, surroundin
     """
     potential_role_bboxes = ([], [])
     for box in bboxes:
-        if box.cls == "Ball":
+        # 此处仅仅考虑两个球队中的大多数球员
+        if box.cls not in ["A", "B"]:
             continue
         dist = calc_distance_in_pixel((target.xcenter, target.ycenter), (box.xcenter, box.ycenter))
         if dist >= surrounding_min_dist_thres and dist <= surrounding_max_dist_thres:

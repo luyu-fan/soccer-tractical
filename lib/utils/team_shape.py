@@ -22,8 +22,9 @@ def convexhull_calc(bboxes):
         for bbox in bboxes:
             points.append([bbox.xcenter, bbox.ycenter])
         hull = ConvexHull(np.asarray(points))
-        convex_points = [bboxes[0]]
-        for simplex in hull.simplices:
-            convex_points.append(bboxes[simplex[1]])
+        
+        for index in hull.vertices:
+            convex_points.append(bboxes[index])
+            
     return convex_points
     

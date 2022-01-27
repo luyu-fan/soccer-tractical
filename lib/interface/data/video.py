@@ -789,7 +789,7 @@ class Video:
                         self.probe_kicker_cls = probe_kicker.cls
                         self.probe_kicker_oid = probe_kicker.oid
                         break
-                    # 这里只是为了修复自我标注时相同的id 如果采用检测的结果就不会有这种问题 此时所有的id都是唯一的
+                    
                     if probe_kicker is not None and (probe_kicker.oid != cur_kicker.oid or (probe_kicker.oid == cur_kicker.oid and probe_kicker.cls != cur_kicker.cls)):
                         self.probe_kicker_up_frame_num = frame_probe_num
                         self.probe_kicker_cls = probe_kicker.cls

@@ -139,7 +139,7 @@ def renderTeamShape(frame, convex_points, color, thickness = 1, linetype= cv2.LI
         line_points = [[point.xcenter - point.width // 2, point.ycenter + point.height // 2], [point.xcenter + point.width // 2, point.ycenter + point.height // 2]]
         footLine.append(line_points)
     footLine = np.asarray(footLine, dtype=np.int32)
-    cv2.polylines(frame, footLine, False, color, thickness = thickness * 4, lineType=linetype)
+    cv2.polylines(frame, footLine, True, color, thickness = thickness * 4, lineType=linetype)
 
     return frame
 

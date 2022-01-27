@@ -32,7 +32,7 @@ def get_color_porb(rgb):
     r = rgb[0]
     g = rgb[1]
     b = rgb[2]
-    return __c2n_table[1 + math.floor(r / 8) + 32 * math.floor(g / 8) + 32 * 32 * math.floor(b / 8)]
+    return __c2n_table[math.floor(r / 8) + 32 * math.floor(g / 8) + 32 * 32 * math.floor(b / 8)]
 
 def get_color_prob_batch(rgbs):
     """

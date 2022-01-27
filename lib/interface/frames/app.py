@@ -91,6 +91,10 @@ class App:
         self.shallow_btn_style = ttk.Style()
         self.shallow_btn_style.configure(constant.SHALLOW_BTN_BACKGROUND_NAME, background = "#6f6f6f", fg="white",font=('microsoft yahei', 14))
         
+        self.white_button = ttk.Style()
+        self.white_button.configure(constant.WEL_ENTER_BTN, background = "#ffffff", fg="#ffffff",font=('microsoft yahei', 14))
+        
+
     def __load__finished(self):
         """
         加载已经处理完毕的视频标题
