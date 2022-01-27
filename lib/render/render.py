@@ -8,10 +8,27 @@ from ..dataprocess import prepare as prepare
 # font_style = ImageFont.truetype("./assets/SimHei.ttf", 12, encoding="utf-8")
 
 def renderArrow(frame, src, dst, color = (32, 64, 96)):
+    """
+    绘制箭头
+    """
     src_point = (int(src.xcenter), int(src.ycenter))
     dst_point = (int(dst.xcenter + (dst.xcenter - src.xcenter) * 4), int(dst.ycenter + (dst.ycenter - src.ycenter) * 4))
     frame = cv2.arrowedLine(frame, src_point, dst_point, color=color, thickness=2,line_type=cv2.LINE_AA)
     frame = cv2.circle(frame, src_point, radius=8, color=color, thickness=-1)
+    return frame
+
+def renderTractical_batch(frame, bboxes, color = (32, 64, 96)):
+    """
+    批量阵型对应的连接线条
+    """
+    lines = []
+    last_point = bboxes[0]
+    for point in bboxes[1:]:
+        line_points = [[last_point.xcenter, last_point.ycenter + point.height // 2], [point.xcenter, point.ycenter + point.height // 2]]
+        lines.append(line_points)
+        last_point = point
+    render_lines = np.asarray(lines, dtype=np.int32)
+    cv2.polylines(frame, render_lines, False, color, thickness = 4, lineType=cv2.LINE_AA)
     return frame
 
 def renderRRectLabel_batch(frame, bbox_records, color = (130, 0, 168), font_color = (255, 255, 255), label_width = 68, label_height = 20):
@@ -146,7 +163,7 @@ def renderTeamShape(frame, convex_points, color, thickness = 1, linetype= cv2.LI
         line_points = [[point.xcenter - point.width // 2, point.ycenter + point.height // 2], [point.xcenter + point.width // 2, point.ycenter + point.height // 2]]
         footLine.append(line_points)
     footLine = np.asarray(footLine, dtype=np.int32)
-    cv2.polylines(frame, footLine, True, color, thickness = thickness * 4, lineType=linetype)
+    cv2.polylines(frame, footLine, False, color, thickness = thickness * 4, lineType=linetype)
 
     return frame
 
@@ -202,6 +219,6 @@ def renderBbox_batch(frame, bbox_records):
         y1 = int(bbox.ycenter - bbox.height / 2)
         x2 = int(bbox.xcenter + bbox.width / 2)
         y2 = int(bbox.ycenter + bbox.height / 2)
-        color = (242, 241, 46)
-        cv2.rectangle(frame, (x1, y1),  (x2, y2), color = color, thickness=1, lineType=cv2.LINE_AA)
+        color = (242, 241, 46) if bbox.cls == "A" else (46, 241, 242) if bbox.cls == "B" else (87, 23, 123)
+        cv2.rectangle(frame, (x1, y1),  (x2, y2), color = color, thickness=2, lineType=cv2.LINE_AA)
     return frame

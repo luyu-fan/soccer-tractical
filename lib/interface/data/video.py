@@ -2,6 +2,7 @@
 对视频片段数据及处理的封装
 """
 import os
+import math
 import threading
 from typing import Iterable
 import cv2
@@ -822,14 +823,40 @@ class Video:
                 frame = render.renderRRectLabel_batch(frame, [cur_kicker], color=(255, 255, 255), font_color=(0, 0, 0), label_width=96, label_height=30)
 
                 # 7. 绘制kicker和下一个kicker运动速度示意 以2帧后的位置为目标位置
+                velocity = None
                 if self.cur_frame_num + 2 < self.total_frames:
                     dst_frame_record = self.labels_dict[self.cur_frame_num + 2]
                     for bbox in dst_frame_record["bbox"]:
                         if cur_kicker.oid == bbox.oid and cur_kicker.cls == bbox.cls:
                             frame = render.renderArrow(frame, cur_kicker, bbox, color = (12,34,180))
+                            # 仅仅考虑当前kicker的速度矢量
+                            velocity = (bbox.xcenter - cur_kicker.xcenter, bbox.ycenter - cur_kicker.ycenter)
                         elif probe_kicker is not None and probe_kicker.oid == bbox.oid and probe_kicker.cls == bbox.cls:
                             frame = render.renderArrow(frame, probe_kicker, bbox, color = (96,6,90))
 
+                
+                # 方法: 以当前的kicker为参考 找到与其运动方向垂直且处在同一个运动的同队球员
+                # 如果这样的球员能找到三个 则先尝试在运动方向上能不能找到和其相向的最近的两个对方球员 此时则可以完成3-2战术
+                # 如果对方只有一个 则尝试绘制2-1战术
+                # 如果对方没有 则放弃绘制
+                # 8. 绘制3-2战术或者是绘制2-1战术
+                self_player_bbox = []
+                enemy_player_bbox = []
+
+                # 从同队中选择球员
+                if velocity is not None:
+                    for bbox in surroundings[0]:
+                        # 计算是否与运动方向同向
+                        cosx = self.calc_cosx(bbox, cur_kicker, velocity)
+                        if cosx is not None and abs(cosx) > 0.8:
+                            self_player_bbox.append((bbox, cosx))
+
+                # print(self_player_bbox)
+                render_bbox = [bbox for (bbox, _) in self_player_bbox]
+                render_bbox.insert(0, cur_kicker)
+                render_bbox = render_bbox[:3]
+                if len(render_bbox) == 3: render_bbox.append(cur_kicker)
+                frame = render.renderTractical_batch(frame, render_bbox, color = (54,164,21))
 
         self.cur_frame_num += 1
         if do_not_incr:
@@ -837,6 +864,22 @@ class Video:
 
         return frame
 
+    def calc_cosx(self, bboxa, bboxb, velocity):
+        """
+        计算连线的方向向量和速度之间的余弦值
+        """
+        line_vector = (bboxa.xcenter - bboxb.xcenter, bboxa.ycenter - bboxb.ycenter)
+        if line_vector[0] == 0 and line_vector[1] == 0:
+            return None
+        # 计算是否与运动方向垂直
+        inner_value = line_vector[0] * velocity[0] + line_vector[1] * velocity[1]
+        norm = math.sqrt(line_vector[0] ** 2 + line_vector[1] ** 2) * math.sqrt(velocity[0] ** 2 + velocity[1] ** 2)
+        cosx = inner_value / norm
+        return cosx
+
+
+    
+    
     def destroy(self):
 
         # 通知线程退出 清理资源
