@@ -751,6 +751,7 @@ class Video:
         self.probe_kicker_oid = ""
         self.probe_kicker_up_frame_num = 0
 
+
     def get_one_rendered_frame(
         self, 
         do_not_incr = False,
@@ -759,6 +760,7 @@ class Video:
         """
         绘制一帧画面的核心函数，主要用来
         """
+        debug = False
         if self.cur_frame_num not in self.labels_dict.keys():
             return None
         frame_record = self.labels_dict[self.cur_frame_num]
@@ -767,6 +769,7 @@ class Video:
         ball = frame_record["ball"]
         cur_kicker = frame_record["kicker"]
         probe_kicker = None
+        print("[Debug]: Stage 0 -> Frame Data Prepared")
         if ball is not None:
             
             # 6 显示bbox
@@ -804,11 +807,12 @@ class Video:
                     frame_probe_num += 1
                     probe_ttl -= 1
 
+            print("[Debug]: 0")
             if cur_kicker is not None:
                 
                 # 3. 将当前帧kicker的周围按照范围将所有的对象检测出来 绘制战术进攻阵型或者防守阵型 显然这里速度很慢 需要批处理 可以看作是一个凸包
                 surroundings = interaction.find_surroundings(cur_kicker, frame_record["bbox"], surrounding_max_dist_thres=self.SURROUNDING_MAX_DIST_THRES)
-
+                print("[Debug]: 1")
                 self_team_shape = team_shape.convexhull_calc(surroundings[0])
                 enemy_team_shape = team_shape.convexhull_calc(surroundings[1])
                 frame = render.renderTeamShape(frame,self_team_shape,(146,224,186))
@@ -821,7 +825,7 @@ class Video:
 
                 # 2. 如果当前帧存在kicker 则将当前帧的kicker给绘制出来
                 frame = render.renderRRectLabel_batch(frame, [cur_kicker], color=(255, 255, 255), font_color=(0, 0, 0), label_width=96, label_height=30)
-
+                print("[Debug]: 2")
                 # 7. 绘制kicker和下一个kicker运动速度示意 以2帧后的位置为目标位置
                 velocity = None
                 if self.cur_frame_num + 2 < self.total_frames:
@@ -833,8 +837,8 @@ class Video:
                             velocity = (bbox.xcenter - cur_kicker.xcenter, bbox.ycenter - cur_kicker.ycenter)
                         elif probe_kicker is not None and probe_kicker.oid == bbox.oid and probe_kicker.cls == bbox.cls:
                             frame = render.renderArrow(frame, probe_kicker, bbox, color = (96,6,90))
+                print("[Debug]: 3")
 
-                
                 # 方法: 以当前的kicker为参考 找到与其运动方向垂直且处在同一个运动的同队球员
                 # 如果这样的球员能找到三个 则先尝试在运动方向上能不能找到和其相向的最近的两个对方球员 此时则可以完成3-2战术
                 # 如果对方只有一个 则尝试绘制2-1战术
@@ -842,21 +846,78 @@ class Video:
                 # 8. 绘制3-2战术或者是绘制2-1战术
                 self_player_bbox = []
                 enemy_player_bbox = []
-
-                # 从同队中选择球员
+                front_player = None
+                front_cosx = 0
+                # 根据当前速度选择
                 if velocity is not None:
+                    # 从同队中选择球员
+                    print("[Debug]: 4")
                     for bbox in surroundings[0]:
                         # 计算是否与运动方向同向
+                        print("Fuck 1")
                         cosx = self.calc_cosx(bbox, cur_kicker, velocity)
-                        if cosx is not None and abs(cosx) > 0.8:
+                        print("[Debug]: 4-1", self.cur_frame_num, cosx, self_player_bbox, bbox)
+                        if (cosx is not None) and (abs(cosx) > 0.6):
                             self_player_bbox.append((bbox, cosx))
+                        print("Fuck 2")
 
+                    # 从另外一队中先选择一个和当前kicker前方的球员
+                    print("[Debug]: 5")
+                    for bbox in surroundings[1]:
+                        # 计算是否与运动方向同向
+                        cosx = self.calc_cosx(bbox, cur_kicker, velocity)
+                        if cosx is not None and cosx > front_cosx:
+                            front_cosx = cosx
+                            front_player = bbox
+
+                    print("[Debug]: 6")
+                    # 从另外一队中选择能够和front_player配合的球员
+                    if front_player is not None:
+                        for bbox in surroundings[1]:
+                        # 计算是否与运动方向同向
+                            cosx = self.calc_cosx(bbox, front_player, velocity)
+                            if cosx is not None and abs(cosx) <= 0.3:
+                                enemy_player_bbox.append((bbox, abs(cosx)))
+
+                print("[Debug]: 7")
                 # print(self_player_bbox)
-                render_bbox = [bbox for (bbox, _) in self_player_bbox]
-                render_bbox.insert(0, cur_kicker)
-                render_bbox = render_bbox[:3]
-                if len(render_bbox) == 3: render_bbox.append(cur_kicker)
-                frame = render.renderTractical_batch(frame, render_bbox, color = (54,164,21))
+                self_player_bbox = sorted(self_player_bbox, key=lambda x: x[1])
+                self_render_bbox = [bbox for (bbox, _) in self_player_bbox]
+                self_render_bbox.insert(0, cur_kicker)
+                print("[Debug]: 7-1")
+
+                enemy_player_bbox = sorted(enemy_player_bbox, key=lambda x: -x[1])
+                print("[Debug]: 7-2")
+                enemy_render_bbox = [bbox for (bbox, _) in enemy_player_bbox]
+                print("[Debug]: 7-3", enemy_render_bbox, front_player)
+                if front_player is not None: enemy_render_bbox.insert(0, front_player)
+                print("[Debug]: 7-4")
+
+                print("[Debug]: 8")
+                if len(enemy_render_bbox) >= 2 and len(self_render_bbox) >= 3:
+                    # 3-2战术
+                    self_render_bbox = self_render_bbox[:3]
+                    enemy_render_bbox = enemy_render_bbox[:2]
+                    self_render_bbox.append(cur_kicker)
+                elif len(enemy_render_bbox) >= 1 and len(self_render_bbox) >= 2:
+                    # 2-1战术
+                    self_render_bbox = self_render_bbox[:2]
+                    enemy_render_bbox = enemy_render_bbox[:1]
+                else:
+                    # TODO 实现其余战术
+                    front_player = None
+                    ...
+                print("[Debug]: 9")
+
+                # 战术绘制
+                if front_player is not None:
+                    # frame = render.renderTractical_batch(frame, self_render_bbox, color = (180,66,48))
+                    # frame = render.renderTractical_batch(frame, enemy_render_bbox, color = (20,20,160))
+                    # frame = render.renderTractical_batch(frame, [cur_kicker, front_player], color = (0,160,160))
+                    frame = render.renderTracticalWithArrow_batch(frame, self_render_bbox, color = (180,66,48))
+                    frame = render.renderTracticalWithArrow_batch(frame, enemy_render_bbox, color = (20,20,160))
+                    frame = render.renderTracticalWithArrow_batch(frame, [cur_kicker, front_player], color = (0,160,160))
+                if debug: print("[Debug]: 10")
 
         self.cur_frame_num += 1
         if do_not_incr:
@@ -869,7 +930,7 @@ class Video:
         计算连线的方向向量和速度之间的余弦值
         """
         line_vector = (bboxa.xcenter - bboxb.xcenter, bboxa.ycenter - bboxb.ycenter)
-        if line_vector[0] == 0 and line_vector[1] == 0:
+        if (line_vector[0] == 0 and line_vector[1] == 0) or (velocity[0] == 0 and velocity[1] == 0):
             return None
         # 计算是否与运动方向垂直
         inner_value = line_vector[0] * velocity[0] + line_vector[1] * velocity[1]
@@ -877,9 +938,6 @@ class Video:
         cosx = inner_value / norm
         return cosx
 
-
-    
-    
     def destroy(self):
 
         # 通知线程退出 清理资源

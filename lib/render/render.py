@@ -13,8 +13,8 @@ def renderArrow(frame, src, dst, color = (32, 64, 96)):
     """
     src_point = (int(src.xcenter), int(src.ycenter))
     dst_point = (int(dst.xcenter + (dst.xcenter - src.xcenter) * 4), int(dst.ycenter + (dst.ycenter - src.ycenter) * 4))
-    frame = cv2.arrowedLine(frame, src_point, dst_point, color=color, thickness=2,line_type=cv2.LINE_AA)
-    frame = cv2.circle(frame, src_point, radius=8, color=color, thickness=-1)
+    frame = cv2.arrowedLine(frame, src_point, dst_point, color=color, thickness=3,line_type=cv2.LINE_AA)
+    frame = cv2.circle(frame, src_point, radius=10, color=color, thickness=-1)
     return frame
 
 def renderTractical_batch(frame, bboxes, color = (32, 64, 96)):
@@ -28,7 +28,22 @@ def renderTractical_batch(frame, bboxes, color = (32, 64, 96)):
         lines.append(line_points)
         last_point = point
     render_lines = np.asarray(lines, dtype=np.int32)
-    cv2.polylines(frame, render_lines, False, color, thickness = 4, lineType=cv2.LINE_AA)
+    cv2.polylines(frame, render_lines, False, color, thickness = 2, lineType=cv2.LINE_AA)
+    return frame
+
+def renderTracticalWithArrow_batch(frame, bboxes, color = (32, 64, 96)):
+    """
+    批量阵型对应的连接线条,附加有箭头，效率比较低下
+    """
+    last_point = bboxes[0]
+    for point in bboxes[1:]:
+        # 两点之间绘制两个箭头
+        middle_point = (int((point.xcenter + last_point.xcenter) / 2), int((point.ycenter + last_point.ycenter) / 2))
+        src_point = (int(last_point.xcenter), int(last_point.ycenter))
+        dst_point = (int(point.xcenter), int(point.ycenter))
+        last_point = point
+        frame = cv2.arrowedLine(frame, middle_point, src_point, color=color, thickness=2, line_type=cv2.LINE_AA)
+        frame = cv2.arrowedLine(frame, middle_point, dst_point, color=color, thickness=2, line_type=cv2.LINE_AA)
     return frame
 
 def renderRRectLabel_batch(frame, bbox_records, color = (130, 0, 168), font_color = (255, 255, 255), label_width = 68, label_height = 20):
