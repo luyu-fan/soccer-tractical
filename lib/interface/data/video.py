@@ -358,6 +358,28 @@ class Video:
     INTERMEDIATE = 4               # 中间数据处理
     FINISHED = 5                   # 数据已经过服务器处理
 
+    INFO = 0
+    DEBUG = 1
+    RELEASE = 2
+    ERROR = 3
+    FATAL = 4
+
+    LOG_STRS_MAP = {
+        INFO: "INFO",
+        DEBUG: "DEBUG",
+        RELEASE: "RELEASE",
+        ERROR: "ERROR",
+        FATAL: "FATAL"
+    }
+
+    def log(self, level, desc):
+        """
+        将video处理过程中的状态日志进行输出
+        TODO 有时间将日志部分模块化处理 规范功能和代码
+        """
+        if level >= self.log_level:
+            print("[%s]: %s" % (Video.LOG_STRS_MAP[level], desc))
+
     def __init__(
         self,
         name,
@@ -408,6 +430,9 @@ class Video:
         # 处理结果列表
         self.players_list = []
         self.ball_list = []
+
+        # 日志映射 TODO 增加日志模块 代理全局日志 规范化处理
+        self.log_level = Video.RELEASE
     
     def process(self, stop_event):
         """
@@ -769,15 +794,19 @@ class Video:
         ball = frame_record["ball"]
         cur_kicker = frame_record["kicker"]
         probe_kicker = None
-        print("[Debug]: Stage 0 -> Frame Data Prepared")
+
+        self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " data prepared.")
+
         if ball is not None:
             
             # 6 显示bbox
             if show_bbox:
                 frame = render.renderBbox_batch(frame, frame_record["bbox"])
+                self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render bbox finished.")
 
             # 1. 将识别到的足球给绘制出来. 标明位置
             frame = render.renderRRectLabel_batch(frame, [ball], color=(36,36,36))
+            self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render rect and label finished.")
             
             # 5. 在ttl帧数窗口内探测下一个kicker
             if self.probe_kicker_up_frame_num > self.cur_frame_num:
@@ -807,12 +836,12 @@ class Video:
                     frame_probe_num += 1
                     probe_ttl -= 1
 
-            print("[Debug]: 0")
+            self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " probe next kicker finished.")
             if cur_kicker is not None:
                 
                 # 3. 将当前帧kicker的周围按照范围将所有的对象检测出来 绘制战术进攻阵型或者防守阵型 显然这里速度很慢 需要批处理 可以看作是一个凸包
                 surroundings = interaction.find_surroundings(cur_kicker, frame_record["bbox"], surrounding_max_dist_thres=self.SURROUNDING_MAX_DIST_THRES)
-                print("[Debug]: 1")
+                self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " generate surroundings shape finished.")
                 self_team_shape = team_shape.convexhull_calc(surroundings[0])
                 enemy_team_shape = team_shape.convexhull_calc(surroundings[1])
                 frame = render.renderTeamShape(frame,self_team_shape,(146,224,186))
@@ -825,7 +854,8 @@ class Video:
 
                 # 2. 如果当前帧存在kicker 则将当前帧的kicker给绘制出来
                 frame = render.renderRRectLabel_batch(frame, [cur_kicker], color=(255, 255, 255), font_color=(0, 0, 0), label_width=96, label_height=30)
-                print("[Debug]: 2")
+                self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render shape and kicker finished.")
+                
                 # 7. 绘制kicker和下一个kicker运动速度示意 以2帧后的位置为目标位置
                 velocity = None
                 if self.cur_frame_num + 2 < self.total_frames:
@@ -837,7 +867,7 @@ class Video:
                             velocity = (bbox.xcenter - cur_kicker.xcenter, bbox.ycenter - cur_kicker.ycenter)
                         elif probe_kicker is not None and probe_kicker.oid == bbox.oid and probe_kicker.cls == bbox.cls:
                             frame = render.renderArrow(frame, probe_kicker, bbox, color = (96,6,90))
-                print("[Debug]: 3")
+                self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render kicker velocity finished.")
 
                 # 方法: 以当前的kicker为参考 找到与其运动方向垂直且处在同一个运动的同队球员
                 # 如果这样的球员能找到三个 则先尝试在运动方向上能不能找到和其相向的最近的两个对方球员 此时则可以完成3-2战术
@@ -851,18 +881,14 @@ class Video:
                 # 根据当前速度选择
                 if velocity is not None:
                     # 从同队中选择球员
-                    print("[Debug]: 4")
                     for bbox in surroundings[0]:
                         # 计算是否与运动方向同向
-                        print("Fuck 1")
                         cosx = self.calc_cosx(bbox, cur_kicker, velocity)
-                        print("[Debug]: 4-1", self.cur_frame_num, cosx, self_player_bbox, bbox)
                         if (cosx is not None) and (abs(cosx) > 0.6):
                             self_player_bbox.append((bbox, cosx))
-                        print("Fuck 2")
+                    self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get self-tractical finished.")
 
                     # 从另外一队中先选择一个和当前kicker前方的球员
-                    print("[Debug]: 5")
                     for bbox in surroundings[1]:
                         # 计算是否与运动方向同向
                         cosx = self.calc_cosx(bbox, cur_kicker, velocity)
@@ -870,7 +896,7 @@ class Video:
                             front_cosx = cosx
                             front_player = bbox
 
-                    print("[Debug]: 6")
+                    self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get front player finished.")
                     # 从另外一队中选择能够和front_player配合的球员
                     if front_player is not None:
                         for bbox in surroundings[1]:
@@ -878,36 +904,31 @@ class Video:
                             cosx = self.calc_cosx(bbox, front_player, velocity)
                             if cosx is not None and abs(cosx) <= 0.3:
                                 enemy_player_bbox.append((bbox, abs(cosx)))
+                    self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get enemy-tractical finished.")
 
-                print("[Debug]: 7")
                 # print(self_player_bbox)
                 self_player_bbox = sorted(self_player_bbox, key=lambda x: x[1])
                 self_render_bbox = [bbox for (bbox, _) in self_player_bbox]
                 self_render_bbox.insert(0, cur_kicker)
-                print("[Debug]: 7-1")
-
                 enemy_player_bbox = sorted(enemy_player_bbox, key=lambda x: -x[1])
-                print("[Debug]: 7-2")
                 enemy_render_bbox = [bbox for (bbox, _) in enemy_player_bbox]
-                print("[Debug]: 7-3", enemy_render_bbox, front_player)
                 if front_player is not None: enemy_render_bbox.insert(0, front_player)
-                print("[Debug]: 7-4")
 
-                print("[Debug]: 8")
                 if len(enemy_render_bbox) >= 2 and len(self_render_bbox) >= 3:
                     # 3-2战术
+                    self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " 3-2 tractical finished.")
                     self_render_bbox = self_render_bbox[:3]
                     enemy_render_bbox = enemy_render_bbox[:2]
                     self_render_bbox.append(cur_kicker)
                 elif len(enemy_render_bbox) >= 1 and len(self_render_bbox) >= 2:
                     # 2-1战术
+                    self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " 2-1 tractical finished.")
                     self_render_bbox = self_render_bbox[:2]
                     enemy_render_bbox = enemy_render_bbox[:1]
                 else:
                     # TODO 实现其余战术
                     front_player = None
                     ...
-                print("[Debug]: 9")
 
                 # 战术绘制
                 if front_player is not None:
@@ -917,12 +938,13 @@ class Video:
                     frame = render.renderTracticalWithArrow_batch(frame, self_render_bbox, color = (180,66,48))
                     frame = render.renderTracticalWithArrow_batch(frame, enemy_render_bbox, color = (20,20,160))
                     frame = render.renderTracticalWithArrow_batch(frame, [cur_kicker, front_player], color = (0,160,160))
-                if debug: print("[Debug]: 10")
+                    self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render tractical finished.")
 
         self.cur_frame_num += 1
         if do_not_incr:
             self.cur_frame_num -= 1
 
+        self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " finished.")
         return frame
 
     def calc_cosx(self, bboxa, bboxb, velocity):
