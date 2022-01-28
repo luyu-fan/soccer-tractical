@@ -8,6 +8,7 @@ from typing import Iterable
 import cv2
 
 from PIL import Image
+from numpy import mat
 from sklearn.cluster import KMeans
 
 from lib.constant import constant
@@ -957,7 +958,7 @@ class Video:
         self_player_bbox = []
         enemy_player_bbox = []
         front_player = None
-        front_cosx = 0
+        front_measure_score = 0
         # 根据当前速度选择
         if velocity is not None:
             # 从同队中选择球员
@@ -965,16 +966,21 @@ class Video:
                 # 计算是否与运动方向同向
                 cosx = self.calc_cosx(bbox, cur_kicker, velocity)
                 if (cosx is not None) and (abs(cosx) > 0.6):
-                    self_player_bbox.append((bbox, cosx))
+                    # 计算像素距离
+                    pixel_dist = interaction.calc_distance_in_pixel((cur_kicker.xcenter, cur_kicker.ycenter), (bbox.xcenter, bbox.ycenter))
+                    self_player_bbox.append((bbox, cosx, pixel_dist))
             self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get self-tractical finished.")
 
             # 从另外一队中先选择一个和当前kicker前方的球员
             for bbox in surroundings[1]:
                 # 计算是否与运动方向同向
                 cosx = self.calc_cosx(bbox, cur_kicker, velocity)
-                if cosx is not None and cosx > front_cosx:
-                    front_cosx = cosx
-                    front_player = bbox
+                if cosx is not None:
+                    pixel_dist = interaction.calc_distance_in_pixel((cur_kicker.xcenter, cur_kicker.ycenter), (bbox.xcenter, bbox.ycenter))
+                    tmp_score = cosx * (1 / math.exp(pixel_dist))
+                    if tmp_score > front_measure_score:
+                        front_measure_score = tmp_score
+                        front_player = bbox
 
             self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get front player finished.")
             # 从另外一队中选择能够和front_player配合的球员
@@ -983,15 +989,16 @@ class Video:
                 # 计算是否与运动方向同向
                     cosx = self.calc_cosx(bbox, front_player, velocity)
                     if cosx is not None and abs(cosx) <= 0.3:
-                        enemy_player_bbox.append((bbox, abs(cosx)))
+                        pixel_dist = interaction.calc_distance_in_pixel((front_player.xcenter, front_player.ycenter), (bbox.xcenter, bbox.ycenter))
+                        enemy_player_bbox.append((bbox, abs(cosx), pixel_dist))
             self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get enemy-tractical finished.")
 
         # print(self_player_bbox)
-        self_player_bbox = sorted(self_player_bbox, key=lambda x: x[1])
-        self_render_bbox = [bbox for (bbox, _) in self_player_bbox]
+        self_player_bbox = sorted(self_player_bbox, key=lambda x: x[1] * (1 / math.exp(x[2])))
+        self_render_bbox = [bbox for (bbox, _, _) in self_player_bbox]
         self_render_bbox.insert(0, cur_kicker)
-        enemy_player_bbox = sorted(enemy_player_bbox, key=lambda x: -x[1])
-        enemy_render_bbox = [bbox for (bbox, _) in enemy_player_bbox]
+        enemy_player_bbox = sorted(enemy_player_bbox, key=lambda x: -(x[1] * x[2]))
+        enemy_render_bbox = [bbox for (bbox, _, _) in enemy_player_bbox]
         if front_player is not None: enemy_render_bbox.insert(0, front_player)
 
         if len(enemy_render_bbox) >= 2 and len(self_render_bbox) >= 3:
