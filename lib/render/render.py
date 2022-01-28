@@ -7,12 +7,12 @@ from ..dataprocess import prepare as prepare
 
 # font_style = ImageFont.truetype("./assets/SimHei.ttf", 12, encoding="utf-8")
 
-def renderArrow(frame, src, dst, color = (32, 64, 96)):
+def renderArrow(frame, kicker, velocity, color = (32, 64, 96)):
     """
     绘制箭头
     """
-    src_point = (int(src.xcenter), int(src.ycenter))
-    dst_point = (int(dst.xcenter + (dst.xcenter - src.xcenter) * 4), int(dst.ycenter + (dst.ycenter - src.ycenter) * 4))
+    src_point = (int(kicker.xcenter), int(kicker.ycenter))
+    dst_point = (int(kicker.xcenter + velocity[0] * 4), int(kicker.ycenter + velocity[1] * 4))
     frame = cv2.arrowedLine(frame, src_point, dst_point, color=color, thickness=3,line_type=cv2.LINE_AA)
     frame = cv2.circle(frame, src_point, radius=10, color=color, thickness=-1)
     return frame

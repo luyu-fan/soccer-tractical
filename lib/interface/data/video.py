@@ -406,9 +406,10 @@ class Video:
         self.cover_img = None
 
         # 和视频播放相关的控制
+        # TODO 作为可以调节的参数暴露在GUI上
         self.KICK_DIST_PIXEL_THRES = 60
-        self.SURROUNDING_MAX_DIST_THRES = 400
-        self.PROBE_TTL = 60
+        self.SURROUNDING_MAX_DIST_THRES = 300
+        self.PROBE_TTL = 45
 
         # 视频序列往前探测分析对象时所需要做的标记
         self.probe_kicker_cls = ""
@@ -817,7 +818,6 @@ class Video:
 
     def __find_next_kicker(
         self,
-        frame,
         cur_kicker,
         frame_record,
     ):
@@ -831,30 +831,25 @@ class Video:
             for bbox in frame_record["bbox"]:
                 if (self.probe_kicker_oid == bbox.oid and self.probe_kicker_cls == bbox.cls):
                     probe_kicker = bbox
-                    frame = render.renderRRectLabel_batch(frame, [probe_kicker], color=(0, 0, 255), font_color=(0, 0, 0), label_width=96, label_height=30)
                     break
         else:
             # 往前探测
             frame_probe_num = self.cur_frame_num + 1
             probe_ttl = self.PROBE_TTL
             while probe_ttl > 0 and (frame_probe_num in self.labels_dict.keys()):
-                probe_kicker = self.labels_dict[frame_probe_num]["kicker"]
-                if probe_kicker is not None and cur_kicker is None:
-                    self.probe_kicker_up_frame_num = frame_probe_num
-                    self.probe_kicker_cls = probe_kicker.cls
-                    self.probe_kicker_oid = probe_kicker.oid
-                    break
-                
-                if probe_kicker is not None and (probe_kicker.oid != cur_kicker.oid or (probe_kicker.oid == cur_kicker.oid and probe_kicker.cls != cur_kicker.cls)):
-                    self.probe_kicker_up_frame_num = frame_probe_num
-                    self.probe_kicker_cls = probe_kicker.cls
-                    self.probe_kicker_oid = probe_kicker.oid
-                    break
+                tmp_probe_kicker = self.labels_dict[frame_probe_num]["kicker"]
+                if tmp_probe_kicker is not None:
+                    if cur_kicker is None or (tmp_probe_kicker.oid != cur_kicker.oid or tmp_probe_kicker.cls != cur_kicker.cls):
+                        self.probe_kicker_up_frame_num = frame_probe_num
+                        self.probe_kicker_cls = tmp_probe_kicker.cls
+                        self.probe_kicker_oid = tmp_probe_kicker.oid
+                        break
+
                 frame_probe_num += 1
                 probe_ttl -= 1
+        
         self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " probe next kicker finished.")
-
-        return frame, probe_kicker
+        return probe_kicker
 
     def __get_surroundings(
         self,
@@ -872,55 +867,89 @@ class Video:
         self,
         frame,
         surroundings,
-        cur_kicker,
     ):
         """
         绘制阵型
         """
+        
         self_team_shape = team_shape.convexhull_calc(surroundings[0])
         enemy_team_shape = team_shape.convexhull_calc(surroundings[1])
-        frame = render.renderTeamShape(frame,self_team_shape,(146,224,186))
-        frame = render.renderTeamShape(frame,enemy_team_shape,(224,186,146))
+        
+        frame = render.renderTeamShape(frame, self_team_shape,(146,224,186))
+        frame = render.renderTeamShape(frame, enemy_team_shape,(224,186,146))
         frame = render.renderRRectLabel_batch(frame, self_team_shape, (242, 168, 123))
         frame = render.renderRRectLabel_batch(frame, enemy_team_shape, (48, 96, 166))
+
+        return frame, self_team_shape, enemy_team_shape
+
+    def __render_distance_curve(
+        self,
+        frame,
+        cur_kicker,
+        team_shape,
+        color = (16,255,16)
+    ):
+        """
+        绘制距离曲线
+        """
         # 4. 绘制当前kicker到其它队友或者是地方的一个距离 绘制曲线
-        frame = render.renderDistance_batch(frame, cur_kicker, self_team_shape, color=(16,255,16))
-        frame = render.renderDistance_batch(frame, cur_kicker, enemy_team_shape, color=(16,16,255))
-
+        frame = render.renderDistance_batch(frame, cur_kicker, team_shape, color=color)
+        self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render team distance curve finished.")
+        return frame
+    
+    def __render_kicker(
+        self,
+        frame,
+        kicker,
+        color = (255, 255, 255),
+        font_color = (0, 0, 0)
+    ):
+        """
+        绘制当前kicker
+        """
         # 2. 如果当前帧存在kicker 则将当前帧的kicker给绘制出来
-        frame = render.renderRRectLabel_batch(frame, [cur_kicker], color=(255, 255, 255), font_color=(0, 0, 0), label_width=96, label_height=30)
-        self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render shape and kicker finished.")
-
+        frame = render.renderRRectLabel_batch(frame, [kicker], color=color, font_color=font_color, label_width=96, label_height=30)
+        self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render kicker finished.")
         return frame
 
     def __render_velocity(
         self,
         frame,
-        cur_kicker,
-        probe_kicker
+        kicker,
+        velocity,
+        color = (12,34,180)
     ):
         """
         绘制速度矢量
         """
+        frame = render.renderArrow(frame, kicker, velocity, color)
+        self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render velocity finished.")
+        return frame
+
+    def __get_velocity(
+        self,
+        kicker,
+    ):
+        """
+        获取速度矢量
+        """
         velocity = None
+        if kicker is None: return None
         if self.cur_frame_num + 2 < self.total_frames:
             dst_frame_record = self.labels_dict[self.cur_frame_num + 2]
             for bbox in dst_frame_record["bbox"]:
-                if cur_kicker.oid == bbox.oid and cur_kicker.cls == bbox.cls:
-                    frame = render.renderArrow(frame, cur_kicker, bbox, color = (12,34,180))
+                if kicker.oid == bbox.oid and kicker.cls == bbox.cls:
                     # 仅仅考虑当前kicker的速度矢量
-                    velocity = (bbox.xcenter - cur_kicker.xcenter, bbox.ycenter - cur_kicker.ycenter)
-                elif probe_kicker is not None and probe_kicker.oid == bbox.oid and probe_kicker.cls == bbox.cls:
-                    frame = render.renderArrow(frame, probe_kicker, bbox, color = (96,6,90))
-        self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render kicker velocity finished.")
-        return frame, velocity
+                    velocity = (bbox.xcenter - kicker.xcenter, bbox.ycenter - kicker.ycenter)
+        self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " get kicker velocity finished.")
+        return velocity
 
     def __render_tractical(
         self,
         frame,
+        cur_kicker,
         velocity,
         surroundings,
-        cur_kicker,
     ):
         """
         绘制战术
@@ -995,8 +1024,7 @@ class Video:
 
     def get_one_rendered_frame(
         self, 
-        do_not_incr = False,
-        show_bbox = False
+        btn_cfg,
     ):
         """
         绘制一帧画面的核心函数，主要用来完成一帧画面绘制时的各个流程
@@ -1005,31 +1033,56 @@ class Video:
             return None
 
         ball, cur_kicker, frame, frame_record = self.__load_frame_data()
+
+        # 6 显示bbox
+        if btn_cfg.show_bbox_flag:
+            frame = self.__render_object_bbox(frame, frame_record)
+
         if ball is not None:
-            # 6 显示bbox
-            if show_bbox:
-                frame = self.__render_object_bbox(frame, frame_record)
+            
             # 1. 将识别到的足球给绘制出来. 标明位置
-            frame = self.__render_ball(frame, ball)
-            # 探测下一个kicker
-            frame, probe_kicker = self.__find_next_kicker(frame, cur_kicker, frame_record)
+            if btn_cfg.show_ball_flag:
+                frame = self.__render_ball(frame, ball)
+            
+            # 2. 探测下一个kicker
+            probe_kicker = self.__find_next_kicker(cur_kicker, frame_record)
+
             if cur_kicker is not None:
                 # 3. 将当前帧kicker的周围按照范围将所有的对象检测出来 绘制战术进攻阵型或者防守阵型 显然这里速度很慢 需要批处理 可以看作是一个凸包
                 surroundings = self.__get_surroundings(cur_kicker, frame_record)
-                frame = self.__render_team_shape(frame, surroundings, cur_kicker)
+                if btn_cfg.show_shape_flag:
+                    frame, self_team_shape, enemy_team_shape = self.__render_team_shape(frame, surroundings)
+                    # 4. 绘制距离曲线
+                    if btn_cfg.show_curve_flag:
+                        frame = self.__render_distance_curve(frame, cur_kicker, self_team_shape, color=(16,240,64))
+                        frame = self.__render_distance_curve(frame, cur_kicker, enemy_team_shape, color=(16,64,128))
                 
+                # 5. 绘制可能的kicker
+                if btn_cfg.show_kicker_flag:
+                    frame = self.__render_kicker(frame, cur_kicker, color=(255,255,255), font_color=(0, 0, 0))
+                    if probe_kicker is not None:
+                        frame = self.__render_kicker(frame, probe_kicker, color=(0,0,255), font_color=(0, 0, 0))
+
                 # 7. 绘制kicker和下一个kicker运动速度示意以2帧后的位置为目标位置
-                frame, velocity = self.__render_velocity(frame, cur_kicker, probe_kicker)
+                cur_velocity = self.__get_velocity(cur_kicker)
+                probe_velocity = self.__get_velocity(probe_kicker)
+
+                if btn_cfg.show_vel_flag:
+                    if cur_velocity is not None:
+                        frame = self.__render_velocity(frame, cur_kicker, cur_velocity, color = (240,129,12))
+                    if probe_velocity is not None and probe_kicker is not None:
+                        frame = self.__render_velocity(frame, probe_kicker, probe_velocity, color = (12,129,240))
 
                 # 方法: 以当前的kicker为参考 找到与其运动方向垂直且处在同一个运动的同队球员
                 # 如果这样的球员能找到三个 则先尝试在运动方向上能不能找到和其相向的最近的两个对方球员 此时则可以完成3-2战术
                 # 如果对方只有一个 则尝试绘制2-1战术
                 # 如果对方没有 则放弃绘制
                 # 8. 绘制3-2战术或者是绘制2-1战术
-                frame = self.__render_tractical(frame, velocity, surroundings, cur_kicker)
+                if btn_cfg.show_tactic_flag:
+                    frame = self.__render_tractical(frame, cur_kicker, cur_velocity, surroundings)
                 
         self.cur_frame_num += 1
-        if do_not_incr:
+        if not btn_cfg.play_flag:
             self.cur_frame_num -= 1
 
         self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " finished.")

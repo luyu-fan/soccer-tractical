@@ -12,6 +12,22 @@ from lib.interface.common import slots
 from lib.interface.data.video import Video
 from lib.workthread import thread as wthread
 
+
+class ControlButtonCfg:
+    """
+    对播放面板上一些按钮的封装
+    """
+    def __init__(self):
+        self.show_ball_flag = True
+        self.show_kicker_flag = True
+        self.play_flag = False
+        self.show_bbox_flag = False
+        self.show_slow_flag = False
+        self.show_vel_flag = False
+        self.show_shape_flag = False
+        self.show_curve_flag = False
+        self.show_tactic_flag = False
+
 class PlayerFrame:
 
     def __init__(
@@ -32,16 +48,10 @@ class PlayerFrame:
         self.draw_worker = wthread.WorkThread("draw_work", self.draw)
         self.cur_video_lock = threading.Lock()
 
-        # Widget
-        self.should_auto_play = False
-        self.should_display_bbox = False
-        self.should_slow_slow_down = False
+        self.btn_cfg = ControlButtonCfg()
 
         self.__init__frame()
-
-    def get_cur_video(self):
-        return self.video
-
+    
     def __init__frame(self):
         """
         绘制
@@ -77,17 +87,53 @@ class PlayerFrame:
         self.next_1_frames.place(relx=0.31, rely=0.25, relwidth=0.08, relheight=0.5)
         self.next_10_frames.place(relx=0.39, rely=0.25, relwidth=0.08, relheight=0.5)
         
+        # show ball
+        self.ball_display_checkbox_val = tkinter.IntVar()
+        self.ball_display_checkbox_val.set(1)
+        self.ball_display_checkbox = ttk.Checkbutton(self.control_pannel, text="Ball", variable=self.ball_display_checkbox_val, command=self.show_ball)
+        self.ball_display_checkbox.place(relx=0.47, rely=0.25, relwidth=0.05, relheight=0.5)
+
+        # show kicker
+        self.kicker_display_checkbox_val = tkinter.IntVar()
+        self.kicker_display_checkbox_val.set(1)
+        self.kicker_display_checkbox = ttk.Checkbutton(self.control_pannel, text="Kicker", variable=self.kicker_display_checkbox_val, command=self.show_kicker)
+        self.kicker_display_checkbox.place(relx=0.51, rely=0.25, relwidth=0.06, relheight=0.5)
+        
         # display bbox
         self.bbox_display_check_IntVar = tkinter.IntVar()
         self.bbox_display_check_IntVar.set(0)
         self.bbox_display_checkbox = ttk.Checkbutton(self.control_pannel, text="Bbox", variable=self.bbox_display_check_IntVar, command=self.show_bbox_check)
-        self.bbox_display_checkbox.place(relx=0.48, rely=0.25, relwidth=0.05, relheight=0.5)
+        self.bbox_display_checkbox.place(relx=0.562, rely=0.25, relwidth=0.05, relheight=0.5)
 
-        # slow slow down
+        # slow down
         self.slow_slow_check_IntVar = tkinter.IntVar()
         self.slow_slow_check_IntVar.set(0)
         self.slow_slow_checkbox = ttk.Checkbutton(self.control_pannel, text="Slowly", variable=self.slow_slow_check_IntVar, command=self.slow_slow_down)
-        self.slow_slow_checkbox.place(relx=0.53, rely=0.25, relwidth=0.06, relheight=0.5)
+        self.slow_slow_checkbox.place(relx=0.61, rely=0.25, relwidth=0.06, relheight=0.5)
+
+        # show velocity
+        self.velocity_checkbox_val = tkinter.IntVar()
+        self.velocity_checkbox_val.set(0)
+        self.velocity_checkbox = ttk.Checkbutton(self.control_pannel, text="Velocity", variable=self.velocity_checkbox_val, command=self.show_vel)
+        self.velocity_checkbox.place(relx=0.661, rely=0.25, relwidth=0.07, relheight=0.5)
+
+        # show team shape
+        self.team_shape_checkbox_val = tkinter.IntVar()
+        self.team_shape_checkbox_val.set(0)
+        self.team_shape_checkbox = ttk.Checkbutton(self.control_pannel, text="Shape", variable=self.team_shape_checkbox_val, command=self.show_shape)
+        self.team_shape_checkbox.place(relx=0.72, rely=0.25, relwidth=0.08, relheight=0.5)
+
+        # show distance curve
+        self.distance_curve_checkbox_val = tkinter.IntVar()
+        self.distance_curve_checkbox_val.set(0)
+        self.distance_curve_checkbox = ttk.Checkbutton(self.control_pannel, text="Distance", variable=self.distance_curve_checkbox_val, command=self.show_curve)
+        self.distance_curve_checkbox.place(relx=0.77, rely=0.25, relwidth=0.065, relheight=0.5)
+
+        # show tactic
+        self.tactic_checkbox_val = tkinter.IntVar()
+        self.tactic_checkbox_val.set(0)
+        self.tactic_checkbox = ttk.Checkbutton(self.control_pannel, text="Tactics", variable=self.tactic_checkbox_val, command=self.show_tactic)
+        self.tactic_checkbox.place(relx=0.832, rely=0.25, relwidth=0.065, relheight=0.5)
 
         self.back_label = ttk.Button(self.control_pannel, text="返回", command=self.back_library)
         self.back_label.place(relx=0.91, rely=0.25, relwidth=0.08, relheight=0.5)
@@ -101,6 +147,9 @@ class PlayerFrame:
         # start draw thread
         self.draw_worker.start()
 
+    def get_cur_video(self):
+        return self.video
+
     def get_image_resize(self):
         """
         在绘制时获取展示窗口的像素大小
@@ -110,10 +159,10 @@ class PlayerFrame:
         return (width, height)
 
     def auto_play(self):
-        self.should_auto_play = True
+        self.btn_cfg.play_flag = True
 
     def play_pause(self):
-        self.should_auto_play = False
+        self.btn_cfg.play_flag = False
 
     def back30_frames(self):
         video = self.get_cur_video()
@@ -135,18 +184,54 @@ class PlayerFrame:
         if video is not None:
             video.next_n_frames(10)
     
+    def show_ball(self):
+        """
+        显示足球
+        """
+        self.btn_cfg.show_ball_flag = (self.ball_display_checkbox_val.get() == 1)
+
+    def show_kicker(self):
+        """
+        显示击球者
+        """
+        self.btn_cfg.show_kicker_flag = (self.kicker_display_checkbox_val.get() == 1)
+
     def show_bbox_check(self):
         """
         显示是否显示bbox
         """
-        self.should_display_bbox = (self.bbox_display_check_IntVar.get() == 1)
+        self.btn_cfg.show_bbox_flag = (self.bbox_display_check_IntVar.get() == 1)
 
     def slow_slow_down(self):
         """
         慢速播放一帧视频
         """
-        self.should_slow_slow_down = (self.slow_slow_check_IntVar.get() == 1)
+        self.btn_cfg.show_slow_flag = (self.slow_slow_check_IntVar.get() == 1)
 
+    def show_vel(self):
+        """
+        显式运动速度示例
+        """
+        self.btn_cfg.show_vel_flag = (self.velocity_checkbox_val.get() == 1)
+    
+    def show_shape(self):
+        """
+        显式运动阵型
+        """
+        self.btn_cfg.show_shape_flag = (self.team_shape_checkbox_val.get() == 1)
+
+    def show_curve(self):
+        """
+        显示距离曲线
+        """
+        self.btn_cfg.show_curve_flag = (self.distance_curve_checkbox_val.get() == 1)
+    
+    def show_tactic(self):
+        """
+        显式战术
+        """
+        self.btn_cfg.show_tactic_flag = (self.tactic_checkbox_val.get() == 1)
+    
     def back_library(
         self,
     ):
@@ -178,7 +263,7 @@ class PlayerFrame:
                 return
             try:
                 # ≈ 35ms for one frame
-                frame = cur_video.get_one_rendered_frame(not self.should_auto_play, self.should_display_bbox)
+                frame = cur_video.get_one_rendered_frame(self.btn_cfg)
                 if frame is None:
                     continue
                 else:
@@ -188,9 +273,9 @@ class PlayerFrame:
                     # avoiding shrinking
                     self.image_label.configure(image=image)
                     self.image_label.image = image
-                if self.should_slow_slow_down:
-                    # for slow slow down: sleeping 300ms
-                    time.sleep(0.3)
+                if self.btn_cfg.show_slow_flag:
+                    # for slow slow down: sleeping 100ms
+                    time.sleep(0.1)
             except Exception as e:
                 pass
 
