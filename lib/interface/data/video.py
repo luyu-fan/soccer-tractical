@@ -8,7 +8,6 @@ from typing import Iterable
 import cv2
 
 from PIL import Image
-from numpy import mat
 from sklearn.cluster import KMeans
 
 from lib.constant import constant
@@ -945,7 +944,7 @@ class Video:
         self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " get kicker velocity finished.")
         return velocity
 
-    def __render_tractical(
+    def __render_tactic(
         self,
         frame,
         cur_kicker,
@@ -1086,7 +1085,7 @@ class Video:
                 # 如果对方没有 则放弃绘制
                 # 8. 绘制3-2战术或者是绘制2-1战术
                 if btn_cfg.show_tactic_flag:
-                    frame = self.__render_tractical(frame, cur_kicker, cur_velocity, surroundings)
+                    frame = self.__render_tactic(frame, cur_kicker, cur_velocity, surroundings)
                 
         self.cur_frame_num += 1
         if not btn_cfg.play_flag:
