@@ -964,11 +964,11 @@ class Video:
             for bbox in surroundings[0]:
                 # 计算是否与运动方向同向
                 cosx = self.calc_cosx(bbox, cur_kicker, velocity)
-                if (cosx is not None) and (abs(cosx) > 0.6):
+                if (cosx is not None) and cosx > - 0.6:
                     # 计算像素距离
                     pixel_dist = interaction.calc_distance_in_pixel((cur_kicker.xcenter, cur_kicker.ycenter), (bbox.xcenter, bbox.ycenter))
                     self_player_bbox.append((bbox, cosx, pixel_dist))
-            self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get self-tractical finished.")
+            self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get self-tactic finished.")
 
             # 从另外一队中先选择一个和当前kicker前方的球员
             for bbox in surroundings[1]:
@@ -976,7 +976,7 @@ class Video:
                 cosx = self.calc_cosx(bbox, cur_kicker, velocity)
                 if cosx is not None:
                     pixel_dist = interaction.calc_distance_in_pixel((cur_kicker.xcenter, cur_kicker.ycenter), (bbox.xcenter, bbox.ycenter))
-                    tmp_score = cosx * (1 / math.exp(pixel_dist))
+                    tmp_score = cosx * (1 / math.exp(0.1 * pixel_dist))
                     if tmp_score > front_measure_score:
                         front_measure_score = tmp_score
                         front_player = bbox
@@ -990,25 +990,25 @@ class Video:
                     if cosx is not None and abs(cosx) <= 0.3:
                         pixel_dist = interaction.calc_distance_in_pixel((front_player.xcenter, front_player.ycenter), (bbox.xcenter, bbox.ycenter))
                         enemy_player_bbox.append((bbox, abs(cosx), pixel_dist))
-            self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get enemy-tractical finished.")
+            self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get enemy-tactic finished.")
 
         # print(self_player_bbox)
-        self_player_bbox = sorted(self_player_bbox, key=lambda x: x[1] * (1 / math.exp(x[2])))
+        self_player_bbox = sorted(self_player_bbox, key=lambda x: x[1] * (1 / math.exp(0.1 * x[2])), reverse=True)
         self_render_bbox = [bbox for (bbox, _, _) in self_player_bbox]
         self_render_bbox.insert(0, cur_kicker)
-        enemy_player_bbox = sorted(enemy_player_bbox, key=lambda x: -(x[1] * x[2]))
+        enemy_player_bbox = sorted(enemy_player_bbox, key=lambda x: -(x[1] * x[2]), reverse=True)
         enemy_render_bbox = [bbox for (bbox, _, _) in enemy_player_bbox]
         if front_player is not None: enemy_render_bbox.insert(0, front_player)
 
         if len(enemy_render_bbox) >= 2 and len(self_render_bbox) >= 3:
             # 3-2战术
-            self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " 3-2 tractical finished.")
+            self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " 3-2 tactic finished.")
             self_render_bbox = self_render_bbox[:3]
             enemy_render_bbox = enemy_render_bbox[:2]
             self_render_bbox.append(cur_kicker)
         elif len(enemy_render_bbox) >= 1 and len(self_render_bbox) >= 2:
             # 2-1战术
-            self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " 2-1 tractical finished.")
+            self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " 2-1 tactic finished.")
             self_render_bbox = self_render_bbox[:2]
             enemy_render_bbox = enemy_render_bbox[:1]
         else:
@@ -1024,7 +1024,7 @@ class Video:
             frame = render.renderTracticalWithArrow_batch(frame, self_render_bbox, color = (180,66,48))
             frame = render.renderTracticalWithArrow_batch(frame, enemy_render_bbox, color = (20,20,160))
             frame = render.renderTracticalWithArrow_batch(frame, [cur_kicker, front_player], color = (0,160,160))
-            self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render tractical finished.")
+            self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render tactic finished.")
 
         return frame
 
