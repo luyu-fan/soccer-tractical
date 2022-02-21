@@ -1,9 +1,5 @@
 .vscode
 __pycache__
-assets
 datasets
-ttkthemes
 
-*.jpg
-*.png
 *.pkl
