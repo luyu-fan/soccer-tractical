@@ -417,6 +417,11 @@ class Video:
         self.probe_kicker_up_frame_num = 0
         self.cur_frame_num = 1
 
+        # 在战术绘制时不合法的帧(过短导致)
+        self.illegal_tactics_frames = set([])
+        # 在使用战术分析的时候用来判断是否已经播放结束
+        self.end_frame_num = -1
+
         # 空间状态更新句柄
         self.cover_update_handler = None
         self.status_update_handler = None
@@ -445,6 +450,8 @@ class Video:
         """
         if self.get_status() == Video.LOADED:
             self.process_loaded(stop_event)
+            # 从已经跟踪过的数据中获取所有的战术片段
+            self.extract_tactics_segments()
         else:
             self.process_unprocess(stop_event)
 
@@ -707,10 +714,9 @@ class Video:
         if self.cover_img is not None:
             return self.cover_img
         if check_exists(self.imgs_folder_name):
-            imgs_names = os.listdir(self.imgs_folder_name)
-            if len(imgs_names) > 0:
-                img_path = os.path.join(self.imgs_folder_name, imgs_names[0])
-                self.cover_img = Image.open(img_path)
+            cover_img_name = "%06d.jpg" %(self.cur_frame_num,)
+            img_path = os.path.join(self.imgs_folder_name, cover_img_name)
+            self.cover_img = Image.open(img_path)
         return self.cover_img
 
     def get_frames(self):
@@ -777,20 +783,23 @@ class Video:
         self.probe_kicker_oid = ""
         self.probe_kicker_up_frame_num = 0
 
+    def __load_frame(self):
+        """
+        根据图像路径读取图像数据
+        """
+        img_path = os.path.join(constant.DATA_ROOT, "images", self.name.split(".")[0], "{:06d}.jpg".format(self.cur_frame_num))
+        frame = cv2.imread(img_path)
+
+        return frame
 
     def __load_frame_data(self):
         """
-        加载绘制时的每一帧数据
+        加载绘制时的每一帧标签数据
         """
         frame_record = self.labels_dict[self.cur_frame_num]
-        img_path = os.path.join(constant.DATA_ROOT, "images", self.name.split(".")[0], "{:06d}.jpg".format(self.cur_frame_num))
-        frame = cv2.imread(img_path)
-        ball = frame_record["ball"]
-        cur_kicker = frame_record["kicker"]
-
         self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " data prepared.")
 
-        return ball, cur_kicker, frame, frame_record
+        return frame_record
 
     def __render_object_bbox(
         self,
@@ -935,6 +944,7 @@ class Video:
         """
         velocity = None
         if kicker is None: return None
+
         if self.cur_frame_num + 2 < self.total_frames:
             dst_frame_record = self.labels_dict[self.cur_frame_num + 2]
             for bbox in dst_frame_record["bbox"]:
@@ -953,7 +963,11 @@ class Video:
     ):
         """
         绘制战术
+        TODO 直接利用战术分析部分的数据而不是再分析一遍
         """
+        if self.cur_frame_num in self.illegal_tactics_frames:
+            return frame
+
         self_player_bbox = []
         enemy_player_bbox = []
         front_player = None
@@ -998,6 +1012,7 @@ class Video:
         self_render_bbox.insert(0, cur_kicker)
         enemy_player_bbox = sorted(enemy_player_bbox, key=lambda x: -(x[1] * x[2]), reverse=True)
         enemy_render_bbox = [bbox for (bbox, _, _) in enemy_player_bbox]
+
         if front_player is not None: enemy_render_bbox.insert(0, front_player)
 
         if len(enemy_render_bbox) >= 2 and len(self_render_bbox) >= 3:
@@ -1035,10 +1050,18 @@ class Video:
         """
         绘制一帧画面的核心函数，主要用来完成一帧画面绘制时的各个流程
         """
+        # 针对一般性绘制
         if self.cur_frame_num not in self.labels_dict.keys():
             return None
 
-        ball, cur_kicker, frame, frame_record = self.__load_frame_data()
+        # 针对战术片段绘制
+        if self.end_frame_num != -1 and self.cur_frame_num >= self.end_frame_num:
+            return None
+
+        frame = self.__load_frame()
+        frame_record = self.__load_frame_data()
+        ball = frame_record["ball"]
+        cur_kicker = frame_record["kicker"]
 
         # 6 显示bbox
         if btn_cfg.show_bbox_flag:
@@ -1094,6 +1117,154 @@ class Video:
         self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " finished.")
         return frame
 
+    def extract_tactics_segments(self):
+        """
+        根据标签数据在初始化的过程中找出所有的战术片段 帧号区间
+        这个函数可以看作是渲染一帧的镜像 耦合程度有点高 有点**代码的坏味道 有时间可以完全重构
+        """
+        tactics_records = {
+            "2-1":[],   # 简单的二过一战术
+            "3-2":[],   # 简单的三过二战术
+        }
+
+        frame_start_index = None
+        tactic_type = None
+        kicker_id = None
+
+        self.get_frames()
+
+        for frame_id in self.labels_dict.keys():
+
+            self.cur_frame_num = frame_id
+            frame_record = self.__load_frame_data()
+
+            cur_kicker = frame_record["kicker"]
+            ball = frame_record["ball"]
+
+            # 在ball和当前踢球者全存在的情况下进行挖掘
+            if ball is not None and cur_kicker is not None:
+
+                surroundings = self.__get_surroundings(cur_kicker, frame_record)
+                cur_velocity = self.__get_velocity(cur_kicker)
+
+                self_player_bbox = []
+                enemy_player_bbox = []
+                front_player = None
+                front_measure_score = 0
+
+                # 根据当前速度选择
+                if cur_velocity is not None:
+                    # 从同队中选择球员
+                    for bbox in surroundings[0]:
+                        # 计算是否与运动方向同向
+                        cosx = self.calc_cosx(bbox, cur_kicker, cur_velocity)
+                        if (cosx is not None) and cosx > - 0.6:
+                            # 计算像素距离
+                            pixel_dist = interaction.calc_distance_in_pixel((cur_kicker.xcenter, cur_kicker.ycenter), (bbox.xcenter, bbox.ycenter))
+                            self_player_bbox.append((bbox, cosx, pixel_dist))
+
+                    # 从另外一队中先选择一个和当前kicker前方的球员
+                    for bbox in surroundings[1]:
+                        # 计算是否与运动方向同向
+                        cosx = self.calc_cosx(bbox, cur_kicker, cur_velocity)
+                        if cosx is not None:
+                            pixel_dist = interaction.calc_distance_in_pixel((cur_kicker.xcenter, cur_kicker.ycenter), (bbox.xcenter, bbox.ycenter))
+                            tmp_score = cosx * (1 / math.exp(0.1 * pixel_dist))
+                            if tmp_score > front_measure_score:
+                                front_measure_score = tmp_score
+                                front_player = bbox
+
+                    # 从另外一队中选择能够和front_player配合的球员
+                    if front_player is not None:
+                        for bbox in surroundings[1]:
+                        # 计算是否与运动方向同向
+                            cosx = self.calc_cosx(bbox, front_player, cur_velocity)
+                            if cosx is not None and abs(cosx) <= 0.3:
+                                pixel_dist = interaction.calc_distance_in_pixel((front_player.xcenter, front_player.ycenter), (bbox.xcenter, bbox.ycenter))
+                                enemy_player_bbox.append((bbox, abs(cosx), pixel_dist))
+                
+                # print(self_player_bbox)
+                self_player_bbox = sorted(self_player_bbox, key=lambda x: x[1] * (1 / math.exp(0.1 * x[2])), reverse=True)
+                self_render_bbox = [bbox for (bbox, _, _) in self_player_bbox]
+                self_render_bbox.insert(0, cur_kicker)
+                enemy_player_bbox = sorted(enemy_player_bbox, key=lambda x: -(x[1] * x[2]), reverse=True)
+                enemy_render_bbox = [bbox for (bbox, _, _) in enemy_player_bbox]
+
+                if front_player is not None: enemy_render_bbox.insert(0, front_player)
+
+                if len(enemy_render_bbox) >= 2 and len(self_render_bbox) >= 3:
+                    # 3-2战术
+                    if tactic_type is None: # 目前战术序列为空 即没有战术安排
+                        tactic_type = "3-2"
+                        frame_start_index = frame_id
+                        kicker_id = cur_kicker.oid
+                    elif tactic_type == "3-2" and kicker_id != cur_kicker.oid: # 产生了新的3-2战术
+                        tactics_records[tactic_type].append((frame_start_index, frame_id))
+                        frame_start_index = frame_id
+                        kicker_id = cur_kicker.oid
+                    elif tactic_type == "2-1": # 如果由原来的2-1变为3-2
+                        tactics_records[tactic_type].append((frame_start_index, frame_id))
+                        tactic_type = "3-2"
+                        frame_start_index = frame_id
+                        kicker_id = cur_kicker.oid
+                    else:
+                        pass
+
+                elif len(enemy_render_bbox) >= 1 and len(self_render_bbox) >= 2:
+                    # 2-1战术
+                    if tactic_type is None: # 目前战术序列为空 即没有战术安排
+                        tactic_type = "2-1"
+                        frame_start_index = frame_id
+                        kicker_id = cur_kicker.oid
+                    elif tactic_type == "2-1" and kicker_id != cur_kicker.oid: # 产生了新的2-1战术
+                        tactics_records[tactic_type].append((frame_start_index, frame_id))
+                        frame_start_index = frame_id
+                        kicker_id = cur_kicker.oid
+                    elif tactic_type == "3-2": # 如果由原来的3-2变为2-1
+                        tactics_records[tactic_type].append((frame_start_index, frame_id))
+                        tactic_type = "2-1"
+                        frame_start_index = frame_id
+                        kicker_id = cur_kicker.oid
+                    else:
+                        pass
+
+                elif tactic_type is not None:
+                    # 出现中断
+                    tactics_records[tactic_type].append((frame_start_index, frame_id))
+                    tactic_type = None
+                    frame_start_index = None
+                    kicker_id = None
+
+                else:
+                    # 没有检测出战术
+                    pass
+        
+        # 过滤过短的不合法的长度
+        # TODO 设置过滤阈值阈值
+        longer_21_tactics = filter(lambda x: x[1] - x[0] >= 10, tactics_records["2-1"])
+        shorter_21_tactics = filter(lambda x: x[1] - x[0] < 10, tactics_records["2-1"])
+        longer_32_tactics = filter(lambda x: x[1] - x[0] >= 10, tactics_records["3-2"])
+        shorter_32_tactics = filter(lambda x: x[1] - x[0] < 10, tactics_records["3-2"])
+
+        # 统计不合法的帧
+        for seg in shorter_21_tactics:
+            for i in range(seg[0], seg[1] + 1):
+                self.illegal_tactics_frames.add(i)
+        for seg in shorter_32_tactics:
+            for i in range(seg[0], seg[1] + 1):
+                self.illegal_tactics_frames.add(i)
+
+        def longer(seg):
+            return (max(seg[0] - 5, 0), min(seg[1] + 5, self.get_frames()))
+
+        longer_21_tactics = map(longer, longer_21_tactics)
+        longer_32_tactics = map(longer, longer_32_tactics)
+
+        # print(self.name, list(longer_21_tactics), list(longer_32_tactics))
+        self.cur_frame_num = 1
+
+        return longer_21_tactics, longer_32_tactics
+        
     def calc_cosx(self, bboxa, bboxb, velocity):
         """
         计算连线的方向向量和速度之间的余弦值
