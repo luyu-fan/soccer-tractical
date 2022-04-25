@@ -1,6 +1,5 @@
 """
-素材库整理界面，主要包括的功能为展示所有的素材信息，即已经处理分析过的视频和正在后端处理的视频。
-Warning:线程不安全的素材库类。
+各类视频的战术分析集锦片段, 由Library Frame修改而来
 """
 import os, time
 import math
@@ -15,7 +14,7 @@ from ..components import card
 from ..common import datahub
 
 
-class LibraryFrame:
+class TacticsFrame:
     
     def __init__(
         self,
@@ -26,8 +25,6 @@ class LibraryFrame:
             root: 父级窗体或控件
         """
         self.root = root
-
-        # 所处模式
         self.in_finished_mode = True
 
         # 分页设置
@@ -41,50 +38,41 @@ class LibraryFrame:
         self.card_width = (1 - self.card_h_margin * (self.max_cards_num - 1)) / self.max_cards_num
         self.card_height = (1 - self.card_v_margin * 3) / 2
         
-        self.videos = []             # 当前用于动态展示的Videos列表
-        self.display_cards_list = [] # 展示视频片段的卡片数组
+        self.all_tactics_map = None      # 所有的战术片段数据
+        self.videos = []                 # 当前用于动态展示的Videos列表
+        self.display_cards_list = []     # 展示视频片段的卡片数组
+        self.video_names = []            # 所有的视频名称
+        self.cur_video_name = ""         # 当前正在展示哪一个视频中的战术数据
 
         self.init_frame()
-        self.filter_finished()
+        self.get_all_tactics()
+        self.filter_21_tactics()
+
+    def get_all_tactics(self):
+        """
+        获取所有的tactics数据
+        """
+        self.all_tactics_map = datahub.DataHub.get_all_tactics()
+        self.video_names = list(self.all_tactics_map.keys())
+        if len(self.video_names) > 0:
+            self.cur_video_name = self.video_names[0]
     
     def init_frame(self):
         """
         frame中各个载体的初始化
         """
-        # 根据root窗体构建摆放各个控件的Frame
-        self.top_level_frame = ttk.Frame(self.root)
-        self.top_level_frame.place(relx=0, rely=0, relwidth=1.0, relheight=1.0)
-        self.top_level_frame.config(style=constant.SHALLOW_FRAME_BACKGROUND_NAME)
+        # top plane 整个面板
+        self.top_panel = ttk.Frame(self.root)
+        self.top_panel.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
+        self.top_panel.config(style=constant.SHALLOW_FRAME_BACKGROUND_NAME)
 
-        # left_bar 左侧选项菜单
-        self.left_bar = ttk.Frame(self.top_level_frame)
-        self.left_bar.place(relx=0, rely=0, relwidth=0.1, relheight=1.0)
-        self.left_bar.config(style=constant.DARK_FRAME_BACKGROUND_NAME)
-
-        # finished 菜单按钮
-        self.finished_image = ImageTk.PhotoImage(image = Image.open("./assets/finished.png"))
-        self.finished_btn = ttk.Button(self.left_bar,image=self.finished_image, command=self.filter_finished)
-        self.finished_btn.place(relx=0, rely=0, relwidth=1, relheight=0.15)
-        self.finished_btn.config(style=constant.DARK_BTN_BACKGROUND_NAME)
-
-        self.proc_image = ImageTk.PhotoImage(image = Image.open("./assets/processing.png"))
-        self.proc_btn = ttk.Button(self.left_bar,image=self.proc_image, command=self.filter_processing)
-        self.proc_btn.place(relx=0, rely=0.15, relwidth=1, relheight=0.15)
-        self.proc_btn.config(style=constant.DARK_BTN_BACKGROUND_NAME)
-
-        self.upload_image = ImageTk.PhotoImage(image = Image.open("./assets/upload.png"))
-        # self.upload_btn = ttk.Button(self.left_bar,image=self.upload_image, command=self.upload_video)
-        self.upload_btn = ttk.Button(self.left_bar,image=self.upload_image, command=self.show_tactics)
-        self.upload_btn.place(relx=0, rely=0.3, relwidth=1, relheight=0.15)
-        self.upload_btn.config(style=constant.DARK_BTN_BACKGROUND_NAME)
-
-        # right_main_plane 右侧显示主体
-        self.right_main_plane = ttk.Frame(self.top_level_frame)
-        self.right_main_plane.place(relx=0.12, rely=0.05, relwidth=0.85, relheight=0.92)
-        self.right_main_plane.config(style=constant.SHALLOW_FRAME_BACKGROUND_NAME)
+        # main plane 右侧显示主体
+        self.main_plane = ttk.Frame(self.top_panel)
+        self.main_plane.place(relx=0.1, rely=0.02, relwidth=0.8, relheight=0.8)
+        self.main_plane.config(style=constant.SHALLOW_FRAME_BACKGROUND_NAME)
 
         # dis_title_plane 统计信息
-        self.dis_title_plane = ttk.Frame(self.right_main_plane)
+        self.dis_title_plane = ttk.Frame(self.main_plane)
         self.dis_title_plane.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=0.1)
         self.display_title = tkinter.StringVar()
         self.title_label = ttk.Label(self.dis_title_plane, textvariable=self.display_title)
@@ -96,12 +84,12 @@ class LibraryFrame:
         self.separator.config(style=constant.FRAME_SEPARATOR_LINE_NAME)
 
         # dis_cards_plane 各个卡片显示信息
-        self.dis_cards_plane = ttk.Frame(self.right_main_plane)
+        self.dis_cards_plane = ttk.Frame(self.main_plane)
         self.dis_cards_plane.place(relx=0.0, rely=0.1, relwidth=1.0, relheight=0.9)
         self.dis_cards_plane.config(style=constant.SHALLOW_FRAME_BACKGROUND_NAME)
 
         # next prev btn 上一页下一页的按钮
-        self.pages_ctl_plane = ttk.Frame(self.right_main_plane)
+        self.pages_ctl_plane = ttk.Frame(self.main_plane)
         self.pages_ctl_plane.place(relx=0.7, rely=0.96, relwidth=0.3, relheight=0.04)
         self.pages_ctl_plane.config(style=constant.SHALLOW_FRAME_BACKGROUND_NAME)
         self.prev_btn = ttk.Label(self.pages_ctl_plane, text="上一页", anchor='center')
@@ -115,23 +103,8 @@ class LibraryFrame:
         self.next_btn.place(relx=0.6, rely=0.0, relwidth=0.4, relheight=1.0)
         self.next_btn.config(style=constant.DESC_TEXT_STYLE_NAME)
 
-        # 视频消息添加tip
-        self.video_upload_tip_plane = ttk.Frame(self.right_main_plane)
-        self.video_upload_tip_plane.place(relx=0, rely=0, relwidth=0, relheight=0)   # for hidden
-        self.video_upload_tip_plane.config(style=constant.DARK_FRAME_BACKGROUND_NAME)
-        self.upload_info_var = tkinter.StringVar()
-        self.upload_info_label = ttk.Label(self.video_upload_tip_plane, textvariable=self.upload_info_var)
-        self.upload_info_label.place(relx=0.0, rely=0.0, relwidth=0.95, relheight=1.0)
-        self.upload_info_label.config(style=constant.TIP_TEXT_STYLE_NAME)
-        self.info_hidden_label = ttk.Label(self.video_upload_tip_plane, text="[x]", anchor="center", justify="right")
-        self.info_hidden_label.place(relx=0.95, rely=0.0, relwidth=0.05, relheight=1.0)
-        self.info_hidden_label.config(style=constant.TIP_TEXT_STYLE_NAME)
-
         self.prev_btn.bind('<Button-1>', self.prev_page)
         self.next_btn.bind('<Button-1>', self.next_page)
-        self.info_hidden_label.bind('<Button-1>', self.hidden_info_label)
-
-        self.root.protocol("WM_DELETE_WINDOW", self.destory)
 
     def prev_page(
         self,
@@ -143,7 +116,9 @@ class LibraryFrame:
         """
         self.cur_page -= 1
         self.cur_page = max(self.cur_page, 0)
-        self.filter_finished() if self.in_finished_mode else self.filter_processing()
+
+        # 切换为
+        self.filter_21_tactics() if self.in_finished_mode else self.filter_32_tactics()
 
     def next_page(
         self,
@@ -154,19 +129,18 @@ class LibraryFrame:
             event: 事件
         """
         self.cur_page += 1
-        self.filter_finished() if self.in_finished_mode else self.filter_processing()
+        self.filter_21_tactics() if self.in_finished_mode else self.filter_32_tactics()
         
-    def filter_finished(self):
+    def filter_21_tactics(self):
         """
         选择处理完毕的视频
         """
-        if not self.in_finished_mode:
-            self.hide_cards()
-            self.cur_page = 0
-            self.in_finished_mode = True
+        # 显示模式
+        self.hide_cards()
+        self.cur_page = 0
 
         # 动态刷新
-        self.videos = datahub.DataHub.get(constant.FINISHED_VIDEOS)
+        self.videos = self.all_tactics_map[self.cur_video_name][0]
         total_pages = math.ceil(len(self.videos ) / self.cap_in_page)
 
         # 循环分页
@@ -175,18 +149,16 @@ class LibraryFrame:
 
         # 视频展示
         self.pages_info_var.set(str(self.cur_page + 1) + " / " + str(total_pages) if total_pages > 0 else "- / -")
-        self.display_title.set("已处理视频总数: " + str(len(self.videos)))
+        self.display_title.set("视频" + self.cur_video_name +"的2-1战术集锦: " + str(len(self.videos)))
 
         self.display()
     
-    def filter_processing(self):
+    def filter_32_tactics(self):
         """
         选择处理中的视频
         """
-        if self.in_finished_mode:
-            self.hide_cards()
-            self.cur_page = 0
-            self.in_finished_mode = False
+        self.hide_cards()
+        self.cur_page = 0
         
         # 动态刷新
         self.videos = datahub.DataHub.get(constant.PROCESSING_VIDEOS)
@@ -198,30 +170,15 @@ class LibraryFrame:
 
         # 视频展示
         self.pages_info_var.set(str(self.cur_page + 1) + " / " + str(total_pages) if total_pages > 0 else "- / -")
-        self.display_title.set("处理中视频总数: " + str(len(self.videos)))
+        self.display_title.set("视频" + self.cur_video_name +"的3-2战术集锦: " + str(len(self.videos)))
 
         self.display()
 
-    def upload_video(self):
-        print("Uploading Video")
-        video_path = filedialog.askopenfilename(title="选择视频", parent=self.right_main_plane)
-        if video_path is None or len(video_path) == 0:
-            return
-        datahub.DataHub.add_processing_video(video_path)
-        self.upload_info_var.set("> 视频:  %s 已添加至待处理队列中!" % (video_path.split("/")[-1],))
-        self.video_upload_tip_plane.place(relx=0.2, rely=0.85, relwidth=0.6, relheight=0.08)
-
-    def show_tactics(self):
+    def back_to_library(self):
         """
-        切换为tactics面板
+        返回到素材面板
         """
-        slots.SlotsHub.get_handler(constant.SWITCH_FRAME_EVENT)(constant.SWITCH_TACTICS_FRAME_CODE)
-
-    def hidden_info_label(self, event):
-        """
-        隐藏提示信息, 简单方法
-        """
-        self.video_upload_tip_plane.place(relx=0, rely=0, relwidth=0, relheight=0)   # for hidden
+        slots.SlotsHub.get_handler(constant.SWITCH_FRAME_EVENT)(constant.SWITCH_LIBRARY_FRAME_CODE)
 
     def display(self):
         """
@@ -255,7 +212,5 @@ class LibraryFrame:
         """
         for card in self.display_cards_list:
             card.destory()
-        self.top_level_frame.destroy()
-        datahub.DataHub.destory()
-        os._exit(0)
+        self.main_plane.destroy()
 

@@ -6,8 +6,8 @@ from tkinter import ttk
 
 from lib.constant import constant
 from lib.dataprocess import check_exists
-from ..frames import welcome, library, player
-from ..common import slots,datahub
+from ..frames import welcome, library, player, tactics
+from ..common import slots, datahub
 from ..data import video
 
 class App:
@@ -35,6 +35,7 @@ class App:
         self.welcome_frame = None
         self.library_frame = None
         self.player_frame = None
+        self.tactic_frame = None
 
     def get_window(self):
         """
@@ -94,7 +95,6 @@ class App:
         self.white_button = ttk.Style()
         self.white_button.configure(constant.WEL_ENTER_BTN, background = "#ffffff", fg="#ffffff",font=('microsoft yahei', 14))
         
-
     def __load__finished(self):
         """
         加载已经处理完毕的视频标题
@@ -116,11 +116,15 @@ class App:
         # 欢迎界面只会展示一次
         if self.welcome_frame is not None:
             self.welcome_frame.destory()
+
         if window_code == constant.SWITCH_WELCOME_FRAME_CODE:
             self.welcome_frame = welcome.WelcomeFrame(self.window)
         elif window_code == constant.SWITCH_LIBRARY_FRAME_CODE:
             if self.player_frame is not None:
                 self.player_frame.destroy()
+            if self.tactic_frame is not None:
+                self.tactic_frame.destory()
+                self.tactic_frame = None
             if self.library_frame is None:
                 self.library_frame = library.LibraryFrame(self.window)
         elif window_code == constant.SWITCH_PLAYER_FRAME_CODE:
@@ -129,6 +133,12 @@ class App:
                 self.player_frame = player.PlayerFrame(self.window, kwarg["video"])
             else:
                 self.player_frame = player.PlayerFrame(self.window, None)
+        
+        elif window_code == constant.SWITCH_TACTICS_FRAME_CODE:
+            # 切换到战术信息展示页面
+            if self.tactic_frame is None:
+                self.tactic_frame = tactics.TacticsFrame(self.window)
+
         else:
             raise NotImplementedError
 

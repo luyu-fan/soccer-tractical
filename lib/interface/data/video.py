@@ -385,14 +385,15 @@ class Video:
         name,
         status = 1,
         upload_video_path = None,
+        is_seg = False
     ):
         """
         Args:
             name: 名称
             status: 状态 可以在初始化时设定 0未完成 1完成 2中间数据处理
             upload_video_path: 对应的原始上传的视频文件路径
+            is_seg: 是否是一个对应了tactic的segment
         """
-
         # 互斥锁
         self.op_mutex = threading.Lock()
 
@@ -404,6 +405,7 @@ class Video:
         self.labels_folder_name = os.path.join(constant.DATA_ROOT, "labels")
         self.total_frames = 0
         self.cover_img = None
+        self.is_seg = is_seg
 
         # 和视频播放相关的控制
         # TODO 作为可以调节的参数暴露在GUI上
@@ -420,18 +422,21 @@ class Video:
         # 在战术绘制时不合法的帧(过短导致)
         self.illegal_tactics_frames = set([])
         # 在使用战术分析的时候用来判断是否已经播放结束
+        self.start_frame_num = 1
         self.end_frame_num = -1
 
         # 空间状态更新句柄
         self.cover_update_handler = None
         self.status_update_handler = None
 
-        # 网络客户端 (将视频处理任务看作是互相隔离的客户端)
-        self.client = client.MOTClient(constant.REMOTE_IP, constant.REMOTE_PORT) if self.video_status == Video.UNPROCESS else None
+        self.process_thread = None
+        if not self.is_seg:
+            # 网络客户端 (将视频处理任务看作是互相隔离的客户端)
+            self.client = client.MOTClient(constant.REMOTE_IP, constant.REMOTE_PORT) if self.video_status == Video.UNPROCESS else None
 
-        # 数据处理线程
-        self.process_thread = wthread.WorkThread("video_process:"+self.name, self.process)
-        self.process_thread.start()
+            # 数据处理线程
+            self.process_thread = wthread.WorkThread("video_process:"+self.name, self.process)
+            self.process_thread.start()
 
         # 处理结果列表
         self.players_list = []
@@ -449,9 +454,8 @@ class Video:
             stop_event: 退出事件信号
         """
         if self.get_status() == Video.LOADED:
-            self.process_loaded(stop_event)
-            # 从已经跟踪过的数据中获取所有的战术片段
-            self.extract_tactics_segments()
+            self.process_loaded(stop_event)   # 得到所有的标签
+            self.extract_tactics_segments()   # 抽取出所有的战术片段
         else:
             self.process_unprocess(stop_event)
 
@@ -723,8 +727,12 @@ class Video:
         """
         返回视频片段的总帧数
         """
-        if check_exists(self.imgs_folder_name):
-            self.total_frames = len(os.listdir(self.imgs_folder_name))
+        if self.is_seg:
+            self.total_frames = self.end_frame_num - self.start_frame_num + 1
+        else:
+            if check_exists(self.imgs_folder_name):
+                self.total_frames = len(os.listdir(self.imgs_folder_name))
+                self.end_frame_num = self.total_frames
         return self.total_frames
 
     def set_status(
@@ -764,7 +772,7 @@ class Video:
         """
         回退n帧
         """
-        self.cur_frame_num = max(1, self.cur_frame_num - n)
+        self.cur_frame_num = max(self.start_frame_num, self.cur_frame_num - n)
         self.probe_kicker_cls = ""
         self.probe_kicker_cls = ""
         self.probe_kicker_oid = ""
@@ -777,7 +785,7 @@ class Video:
         """
         前进若干帧
         """
-        self.cur_frame_num = min(self.total_frames, self.cur_frame_num + n)
+        self.cur_frame_num = min(self.end_frame_num, self.cur_frame_num + n)
         self.probe_kicker_cls = ""
         self.probe_kicker_cls = ""
         self.probe_kicker_oid = ""
@@ -1050,12 +1058,8 @@ class Video:
         """
         绘制一帧画面的核心函数，主要用来完成一帧画面绘制时的各个流程
         """
-        # 针对一般性绘制
-        if self.cur_frame_num not in self.labels_dict.keys():
-            return None
-
-        # 针对战术片段绘制
-        if self.end_frame_num != -1 and self.cur_frame_num >= self.end_frame_num:
+        # 超过绘制边界
+        if self.cur_frame_num not in self.labels_dict.keys() or self.cur_frame_num >= self.end_frame_num:
             return None
 
         frame = self.__load_frame()
@@ -1240,7 +1244,6 @@ class Video:
                     pass
         
         # 过滤过短的不合法的长度
-        # TODO 设置过滤阈值阈值
         longer_21_tactics = filter(lambda x: x[1] - x[0] >= 10, tactics_records["2-1"])
         shorter_21_tactics = filter(lambda x: x[1] - x[0] < 10, tactics_records["2-1"])
         longer_32_tactics = filter(lambda x: x[1] - x[0] >= 10, tactics_records["3-2"])
@@ -1263,7 +1266,38 @@ class Video:
         # print(self.name, list(longer_21_tactics), list(longer_32_tactics))
         self.cur_frame_num = 1
 
-        return longer_21_tactics, longer_32_tactics
+        video_tactics_segs = [[],[]]
+
+        for tactic in longer_21_tactics:
+            seg = self.copy_self()
+            seg.cur_frame_num = tactic[0]
+            seg.start_frame_num = tactic[0]
+            seg.end_frame_num = tactic[1]
+            video_tactics_segs[0].append(seg)
+
+        for tactic in longer_32_tactics:
+            seg = self.copy_self()
+            seg.cur_frame_num = tactic[0]
+            seg.start_frame_num = tactic[0]
+            seg.end_frame_num = tactic[1]
+            video_tactics_segs[1].append(seg)
+        
+        # 添加
+        datahub.DataHub.add_tactics(self.name, video_tactics_segs)
+    
+    def copy_self(self):
+        """
+        产生一份自己的拷贝 以供修改
+        """
+        new_video = Video(self.name, status=1, is_seg=True)
+
+        # 只读数据引用拷贝
+        new_video.video_status = self.video_status
+        new_video.upload_video_path = self.upload_video_path
+        new_video.illegal_tactics_frames = self.illegal_tactics_frames
+        new_video.labels_dict = self.labels_dict
+
+        return new_video
         
     def calc_cosx(self, bboxa, bboxb, velocity):
         """
@@ -1288,5 +1322,5 @@ class Video:
         #     self.process_thread.stop()
         #     time.sleep(0.1)
 
-        if self.process_thread.is_alive() and not self.process_thread.is_stop():
+        if self.process_thread is not None and self.process_thread.is_alive() and not self.process_thread.is_stop():
             self.process_thread.stop()

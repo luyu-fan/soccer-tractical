@@ -1,6 +1,7 @@
 """
 程序运行时涉及到的所有中间数据的集合
 """
+import threading
 from lib.constant import constant
 from ..data import video
 
@@ -10,6 +11,9 @@ class DataHub:
     存放和管理程序所需所有数据的静态类
     """
     __global_data_hub = {}
+    __global_data_hub[constant.TACTICS] = {}
+
+    mutex = threading.Lock()
 
     @staticmethod
     def get(data_name):
@@ -32,6 +36,21 @@ class DataHub:
         """
         DataHub.__global_data_hub[data_name] = data
     
+    def add_tactics(name, tactics_videos_map):
+        """
+        将某个完整视频中的各个战术数据添加到已存在的字典中
+        """
+        DataHub.mutex.acquire()
+        DataHub.__global_data_hub[constant.TACTICS][name] = tactics_videos_map
+        DataHub.mutex.release()
+
+    def get_all_tactics():
+        """
+        获取所有视频的战术片段数据
+        """
+        # 使用更合适的方案
+        return DataHub.__global_data_hub[constant.TACTICS]
+
     @staticmethod
     def add_processing_video(
         video_path,
@@ -69,6 +88,7 @@ class DataHub:
         if constant.FINISHED_VIDEOS in DataHub.__global_data_hub:
             for video in DataHub.__global_data_hub[constant.FINISHED_VIDEOS]:
                 video.destroy()
+
 
     @staticmethod
     def move(finish_video):
