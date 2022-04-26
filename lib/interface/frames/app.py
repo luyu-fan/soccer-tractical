@@ -137,12 +137,15 @@ class App:
                 self.player_frame = player.PlayerFrame(self.window, None)
         elif window_code == constant.SWITCH_TACTICS_FRAME_CODE:
             # 切换到战术信息展示页面 在原始的Library界面上做了一层覆盖
+            if self.player_frame is not None:
+                self.player_frame.destroy()
+                self.player_frame = None
             deafult_video_name = None
             deafult_tactic_type = None
-            if "deafult_video_name" in kwarg.keys():
-                deafult_video_name = kwarg["deafult_video_name"]
-            if "deafult_tactic_type" in kwarg.keys():
-                deafult_tactic_type = kwarg["deafult_tactic_type"]
+            if "default_video_name" in kwarg.keys():
+                deafult_video_name = kwarg["default_video_name"]
+            if "default_tactic_type" in kwarg.keys():
+                deafult_tactic_type = kwarg["default_tactic_type"]
             self.tactic_frame = tactics.TacticsFrame(self.window, deafult_video_name, deafult_tactic_type)
         else:
             raise NotImplementedError
