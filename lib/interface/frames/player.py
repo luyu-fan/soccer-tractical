@@ -33,7 +33,7 @@ class PlayerFrame:
     def __init__(
         self,
         root,
-        video,
+        video = None,
     ):
         """
         播放器。对每一帧视频进行渲染处理并播放。
@@ -135,7 +135,7 @@ class PlayerFrame:
         self.tactic_checkbox = ttk.Checkbutton(self.control_pannel, text="Tactics", variable=self.tactic_checkbox_val, command=self.show_tactic)
         self.tactic_checkbox.place(relx=0.832, rely=0.25, relwidth=0.065, relheight=0.5)
 
-        self.back_label = ttk.Button(self.control_pannel, text="返回", command=self.back_library)
+        self.back_label = ttk.Button(self.control_pannel, text="返回", command=self.back_to_frames)
         self.back_label.place(relx=0.91, rely=0.25, relwidth=0.08, relheight=0.5)
         # self.back_label.config(style=constant.DESC_TEXT_STYLE_NAME)
         # self.back_label.bind("<Button-1>", self.back_library)
@@ -232,14 +232,17 @@ class PlayerFrame:
         """
         self.btn_cfg.show_tactic_flag = (self.tactic_checkbox_val.get() == 1)
     
-    def back_library(
+    def back_to_frames(
         self,
     ):
         """
         返回素材库
         """
         self.destroy()
-        slots.SlotsHub.get_handler(constant.SWITCH_FRAME_EVENT)(constant.SWITCH_LIBRARY_FRAME_CODE)
+        if self.video.is_seg and self.video.tactic_type is not None:
+            slots.SlotsHub.get_handler(constant.SWITCH_FRAME_EVENT)(constant.SWITCH_TACTICS_FRAME_CODE, default_video_name = self.video.name, default_tactic_type = self.video.tactic_type)
+        else:
+            slots.SlotsHub.get_handler(constant.SWITCH_FRAME_EVENT)(constant.SWITCH_LIBRARY_FRAME_CODE)
 
     def destroy(self):
         """

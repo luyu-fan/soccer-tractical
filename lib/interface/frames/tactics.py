@@ -4,29 +4,30 @@
 import math
 import tkinter, tkinter.ttk as ttk
 
-from lib.constant import constant
+from lib.constant import constant as constant
 from lib.interface.common import slots
 
 from ..components import card
 from ..common import datahub
 
-
 class TacticsFrame:
-
-    TACTIC_21 = 0
-    TACTIC_32 = 1
     
     def __init__(
         self,
         root,
+        default_video_name = None,
+        default_tatic_type = None,
     ):
         """
         Args:
             root: 父级窗体或控件
+            video_name: 默认目标视频
+            tatic_type: 默认战术类型
         """
         self.root = root
-        self.show_tactic_type = TacticsFrame.TACTIC_21
-
+        self.default_video_name = default_video_name
+        self.show_tactic_type = constant.TACTIC_21 if (default_tatic_type is None or default_tatic_type == constant.TACTIC_21) else constant.TACTIC_32
+        
         # 分页设置
         self.cap_in_page = 8       # 每页最多显示的数目
         self.total_page = 0        # 动态计算的页总数
@@ -45,7 +46,11 @@ class TacticsFrame:
 
         self.init_frame()
         self.get_all_tactics()
-        self.filter_21_tactics()
+        
+        if self.show_tactic_type == constant.TACTIC_21:
+            self.filter_21_tactics()
+        else:
+            self.filter_32_tactics()
 
     def get_all_tactics(self):
         """
@@ -53,9 +58,11 @@ class TacticsFrame:
         """
         self.all_tactics_map = datahub.DataHub.get_all_tactics()
         self.video_names = list(self.all_tactics_map.keys())
-        if len(self.video_names) > 0:
+        if self.default_video_name in self.video_names:
+            self.select_video_name_str.set(self.default_video_name)
+        elif len(self.video_names) > 0:
             self.select_video_name_str.set(self.video_names[0])
-            self.video_combobox["values"] = self.video_names
+        self.video_combobox["values"] = self.video_names
     
     def init_frame(self):
         """
@@ -136,7 +143,7 @@ class TacticsFrame:
         """
         响应选择视频
         """
-        if self.show_tactic_type == TacticsFrame.TACTIC_21:
+        if self.show_tactic_type == constant.TACTIC_21:
             self.filter_21_tactics()
         else:
             self.filter_32_tactics()
@@ -153,7 +160,7 @@ class TacticsFrame:
         self.cur_page = max(self.cur_page, 0)
 
         # 切换为
-        self.filter_21_tactics() if self.show_tactic_type == TacticsFrame.TACTIC_21 else self.filter_32_tactics()
+        self.filter_21_tactics() if self.show_tactic_type == constant.TACTIC_21 else self.filter_32_tactics()
 
     def next_page(
         self,
@@ -164,17 +171,17 @@ class TacticsFrame:
             event: 事件
         """
         self.cur_page += 1
-        self.filter_21_tactics() if self.show_tactic_type == TacticsFrame.TACTIC_21 else self.filter_32_tactics()
+        self.filter_21_tactics() if self.show_tactic_type == constant.TACTIC_21 else self.filter_32_tactics()
         
     def filter_21_tactics(self, event = None):
         """
         选择处理完毕的视频
         """
         # 显示模式
-        if self.show_tactic_type == TacticsFrame.TACTIC_32:
+        if self.show_tactic_type == constant.TACTIC_32:
             self.hide_cards()
             self.cur_page = 0
-        self.show_tactic_type = TacticsFrame.TACTIC_21
+        self.show_tactic_type = constant.TACTIC_21
 
         # 动态刷新
         if self.select_video_name_str.get() not in self.video_names:
@@ -197,10 +204,10 @@ class TacticsFrame:
         """
         选择处理中的视频
         """
-        if self.show_tactic_type == TacticsFrame.TACTIC_21:
+        if self.show_tactic_type == constant.TACTIC_21:
             self.hide_cards()
             self.cur_page = 0
-        self.show_tactic_type = TacticsFrame.TACTIC_32
+        self.show_tactic_type = constant.TACTIC_32
         
         if self.select_video_name_str.get() not in self.video_names:
             return
@@ -223,6 +230,7 @@ class TacticsFrame:
         """
         返回到素材面板
         """
+        self.destory()
         slots.SlotsHub.get_handler(constant.SWITCH_FRAME_EVENT)(constant.SWITCH_LIBRARY_FRAME_CODE)
 
     def display(self):

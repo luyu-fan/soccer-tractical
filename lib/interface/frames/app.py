@@ -128,13 +128,22 @@ class App:
                 self.library_frame = library.LibraryFrame(self.window)
         elif window_code == constant.SWITCH_PLAYER_FRAME_CODE:
             # 在library_frame上叠加player_frame
+            if self.tactic_frame is not None:
+                self.tactic_frame.destory()
+                self.tactic_frame = None
             if "video" in kwarg.keys():
                 self.player_frame = player.PlayerFrame(self.window, kwarg["video"])
             else:
                 self.player_frame = player.PlayerFrame(self.window, None)
         elif window_code == constant.SWITCH_TACTICS_FRAME_CODE:
-            if self.tactic_frame is None:  # 切换到战术信息展示页面 在原始的Library界面上做了一层覆盖
-                self.tactic_frame = tactics.TacticsFrame(self.window)
+            # 切换到战术信息展示页面 在原始的Library界面上做了一层覆盖
+            deafult_video_name = None
+            deafult_tactic_type = None
+            if "deafult_video_name" in kwarg.keys():
+                deafult_video_name = kwarg["deafult_video_name"]
+            if "deafult_tactic_type" in kwarg.keys():
+                deafult_tactic_type = kwarg["deafult_tactic_type"]
+            self.tactic_frame = tactics.TacticsFrame(self.window, deafult_video_name, deafult_tactic_type)
         else:
             raise NotImplementedError
 
