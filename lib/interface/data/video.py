@@ -729,10 +729,9 @@ class Video:
         """
         if self.is_seg:
             self.total_frames = self.end_frame_num - self.start_frame_num + 1
-        else:
-            if check_exists(self.imgs_folder_name):
-                self.total_frames = len(os.listdir(self.imgs_folder_name))
-                self.end_frame_num = self.total_frames
+        elif check_exists(self.imgs_folder_name):
+            self.total_frames = len(os.listdir(self.imgs_folder_name))
+            self.end_frame_num = self.total_frames
         return self.total_frames
 
     def set_status(
@@ -953,7 +952,7 @@ class Video:
         velocity = None
         if kicker is None: return None
 
-        if self.cur_frame_num + 2 < self.total_frames:
+        if self.cur_frame_num + 2 < self.end_frame_num:
             dst_frame_record = self.labels_dict[self.cur_frame_num + 2]
             for bbox in dst_frame_record["bbox"]:
                 if kicker.oid == bbox.oid and kicker.cls == bbox.cls:
@@ -973,13 +972,12 @@ class Video:
         绘制战术
         TODO 直接利用战术分析部分的数据而不是再分析一遍
         """
-        if self.cur_frame_num in self.illegal_tactics_frames:
-            return frame
-
         self_player_bbox = []
         enemy_player_bbox = []
         front_player = None
         front_measure_score = 0
+
+        # print("Surroundings:", len(surroundings[0]), len(surroundings[1]), cur_kicker, velocity)
         # 根据当前速度选择
         if velocity is not None:
             # 从同队中选择球员
@@ -1004,6 +1002,7 @@ class Video:
                         front_player = bbox
 
             self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get front player finished.")
+
             # 从另外一队中选择能够和front_player配合的球员
             if front_player is not None:
                 for bbox in surroundings[1]:
@@ -1022,7 +1021,7 @@ class Video:
         enemy_render_bbox = [bbox for (bbox, _, _) in enemy_player_bbox]
 
         if front_player is not None: enemy_render_bbox.insert(0, front_player)
-
+        
         if len(enemy_render_bbox) >= 2 and len(self_render_bbox) >= 3:
             # 3-2战术
             self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " 3-2 tactic finished.")
@@ -1133,7 +1132,7 @@ class Video:
 
         frame_start_index = None
         tactic_type = None
-        kicker_id = None
+        tactic_kicker_id = None
 
         self.get_frames()
 
@@ -1196,75 +1195,72 @@ class Video:
 
                 if front_player is not None: enemy_render_bbox.insert(0, front_player)
 
+                # 存在某些问题
+                # if len(enemy_render_bbox) >= 2 and len(self_render_bbox) >= 3:
+                #     if tactic_type is None:  # 一段时间后首次检测出3-2
+                #         tactic_type = "3-2"
+                #         frame_start_index = frame_id
+                #         tactic_kicker_id = cur_kicker.oid
+                #     elif tactic_type == "3-2": # 持续检测出3-2
+                #         if tactic_kicker_id == cur_kicker.oid:
+                #             pass
+                #         else: # 目标id发生了变化
+                #             tactics_records[tactic_type].append((frame_start_index, frame_id))
+                #             frame_start_index = frame_id
+                #             tactic_kicker_id = cur_kicker.oid
+                #     else: # 如果由原来的2-1变为3-2
+                #         tactics_records[tactic_type].append((frame_start_index, frame_id))
+                #         tactic_type = "3-2"
+                #         frame_start_index = frame_id
+                #         tactic_kicker_id = cur_kicker.oid
+
+                # elif len(enemy_render_bbox) >= 1 and len(self_render_bbox) >= 2:
+                #     # 2-1战术
+                #     if tactic_type is None: # 一段时间后首次检测出2-1
+                #         tactic_type = "2-1"
+                #         frame_start_index = frame_id
+                #         tactic_kicker_id = cur_kicker.oid
+                #     elif tactic_type == "2-1":
+                #         if tactic_kicker_id == cur_kicker.oid: # 没有产生新的战术
+                #             pass
+                #         else:
+                #             tactics_records[tactic_type].append((frame_start_index, frame_id))
+                #             frame_start_index = frame_id
+                #             tactic_kicker_id = cur_kicker.oid
+                #     else: # 如果由原来的3-2变为2-1
+                #         tactics_records[tactic_type].append((frame_start_index, frame_id))
+                #         tactic_type = "2-1"
+                #         frame_start_index = frame_id
+                #         tactic_kicker_id = cur_kicker.oid
+
                 if len(enemy_render_bbox) >= 2 and len(self_render_bbox) >= 3:
-                    # 3-2战术
-                    if tactic_type is None: # 目前战术序列为空 即没有战术安排
+                    if tactic_type is None:  # 一段时间后首次检测出3-2
                         tactic_type = "3-2"
                         frame_start_index = frame_id
-                        kicker_id = cur_kicker.oid
-                    elif tactic_type == "3-2" and kicker_id != cur_kicker.oid: # 产生了新的3-2战术
-                        tactics_records[tactic_type].append((frame_start_index, frame_id))
-                        frame_start_index = frame_id
-                        kicker_id = cur_kicker.oid
-                    elif tactic_type == "2-1": # 如果由原来的2-1变为3-2
-                        tactics_records[tactic_type].append((frame_start_index, frame_id))
-                        tactic_type = "3-2"
-                        frame_start_index = frame_id
-                        kicker_id = cur_kicker.oid
-                    else:
-                        pass
-
                 elif len(enemy_render_bbox) >= 1 and len(self_render_bbox) >= 2:
-                    # 2-1战术
-                    if tactic_type is None: # 目前战术序列为空 即没有战术安排
+                    if tactic_type is None:  # 一段时间后首次检测出2-1
                         tactic_type = "2-1"
                         frame_start_index = frame_id
-                        kicker_id = cur_kicker.oid
-                    elif tactic_type == "2-1" and kicker_id != cur_kicker.oid: # 产生了新的2-1战术
-                        tactics_records[tactic_type].append((frame_start_index, frame_id))
-                        frame_start_index = frame_id
-                        kicker_id = cur_kicker.oid
-                    elif tactic_type == "3-2": # 如果由原来的3-2变为2-1
-                        tactics_records[tactic_type].append((frame_start_index, frame_id))
-                        tactic_type = "2-1"
-                        frame_start_index = frame_id
-                        kicker_id = cur_kicker.oid
-                    else:
-                        pass
-
                 elif tactic_type is not None:
                     # 出现中断
                     tactics_records[tactic_type].append((frame_start_index, frame_id))
                     tactic_type = None
                     frame_start_index = None
-                    kicker_id = None
-
                 else:
                     # 没有检测出战术
-                    pass
+                    tactic_type = None
+                    frame_start_index = None
         
         # 过滤过短的不合法的长度
-        longer_21_tactics = filter(lambda x: x[1] - x[0] >= 10, tactics_records["2-1"])
-        shorter_21_tactics = filter(lambda x: x[1] - x[0] < 10, tactics_records["2-1"])
-        longer_32_tactics = filter(lambda x: x[1] - x[0] >= 10, tactics_records["3-2"])
-        shorter_32_tactics = filter(lambda x: x[1] - x[0] < 10, tactics_records["3-2"])
-
-        # 统计不合法的帧
-        for seg in shorter_21_tactics:
-            for i in range(seg[0], seg[1] + 1):
-                self.illegal_tactics_frames.add(i)
-        for seg in shorter_32_tactics:
-            for i in range(seg[0], seg[1] + 1):
-                self.illegal_tactics_frames.add(i)
+        short_thresh = 6
+        longer_21_tactics = filter(lambda x: x[1] - x[0] >= short_thresh, tactics_records["2-1"])
+        longer_32_tactics = filter(lambda x: x[1] - x[0] >= short_thresh, tactics_records["3-2"])
 
         def longer(seg):
-            return (max(seg[0] - 5, 0), min(seg[1] + 5, self.get_frames()))
+            return (max(seg[0] - 5, 1), min(seg[1] + 5, self.get_frames()))
 
         longer_21_tactics = map(longer, longer_21_tactics)
         longer_32_tactics = map(longer, longer_32_tactics)
-
-        # print(self.name, list(longer_21_tactics), list(longer_32_tactics))
-        self.cur_frame_num = 1
 
         video_tactics_segs = [[],[]]
 
@@ -1281,6 +1277,8 @@ class Video:
             seg.start_frame_num = tactic[0]
             seg.end_frame_num = tactic[1]
             video_tactics_segs[1].append(seg)
+        
+        self.cur_frame_num = 1
         
         # 添加
         datahub.DataHub.add_tactics(self.name, video_tactics_segs)
