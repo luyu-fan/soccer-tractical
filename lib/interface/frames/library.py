@@ -62,7 +62,7 @@ class LibraryFrame:
         self.left_bar.config(style=constant.DARK_FRAME_BACKGROUND_NAME)
 
         # finished 菜单按钮
-        self.finished_image = ImageTk.PhotoImage(image = Image.open("./assets/finished.png"))
+        self.finished_image = ImageTk.PhotoImage(image = Image.open("./assets/list.png"))
         self.finished_btn = ttk.Button(self.left_bar,image=self.finished_image, command=self.filter_finished)
         self.finished_btn.place(relx=0, rely=0, relwidth=1, relheight=0.15)
         self.finished_btn.config(style=constant.DARK_BTN_BACKGROUND_NAME)
@@ -73,10 +73,14 @@ class LibraryFrame:
         self.proc_btn.config(style=constant.DARK_BTN_BACKGROUND_NAME)
 
         self.upload_image = ImageTk.PhotoImage(image = Image.open("./assets/upload.png"))
-        # self.upload_btn = ttk.Button(self.left_bar,image=self.upload_image, command=self.upload_video)
-        self.upload_btn = ttk.Button(self.left_bar,image=self.upload_image, command=self.show_tactics)
+        self.upload_btn = ttk.Button(self.left_bar,image=self.upload_image, command=self.upload_video)
         self.upload_btn.place(relx=0, rely=0.3, relwidth=1, relheight=0.15)
         self.upload_btn.config(style=constant.DARK_BTN_BACKGROUND_NAME)
+
+        self.tactic_image = ImageTk.PhotoImage(image = Image.open("./assets/tactic.png"))
+        self.tactic_btn = ttk.Button(self.left_bar,image=self.tactic_image, command=self.show_tactics)
+        self.tactic_btn.place(relx=0, rely=0.45, relwidth=1, relheight=0.15)
+        self.tactic_btn.config(style=constant.DARK_BTN_BACKGROUND_NAME)
 
         # right_main_plane 右侧显示主体
         self.right_main_plane = ttk.Frame(self.top_level_frame)
