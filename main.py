@@ -7,6 +7,9 @@ if __name__ == "__main__":
 
     # main_window = tkinter.Tk()
     main_window = ThemedTk(theme="equilux")
+
+    main_window.overrideredirect(False)
+
     main_window.title("SoccerDetector")
     main_window.iconbitmap("./assets/soccer_roteiro.ico")
 

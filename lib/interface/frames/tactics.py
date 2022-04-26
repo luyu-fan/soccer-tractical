@@ -98,7 +98,7 @@ class TacticsFrame:
         # videos的下拉列表
         self.select_video_name_str = tkinter.StringVar()
         self.video_combobox = ttk.Combobox(self.main_plane, textvariable=self.select_video_name_str)
-        self.video_combobox.place(relx=0.76, rely=0.02, relwidth=0.165, relheight=0.06)
+        self.video_combobox.place(relx=0.765, rely=0.02, relwidth=0.165, relheight=0.06)
         self.video_combobox["state"] = "readonly"
         self.video_combobox.bind("<<ComboboxSelected>>", self.select_video)
 
@@ -196,7 +196,7 @@ class TacticsFrame:
 
         # 视频展示
         self.pages_info_var.set(str(self.cur_page + 1) + " / " + str(total_pages) if total_pages > 0 else "- / -")
-        self.display_title.set("视频" + self.select_video_name_str.get() +"的[2-1]战术集锦: " + str(len(self.videos)))
+        self.display_title.set("视频" + self.select_video_name_str.get() +"的[ 2-1 ]战术集锦: " + str(len(self.videos)))
 
         self.display()
     
@@ -222,7 +222,7 @@ class TacticsFrame:
 
         # 视频展示
         self.pages_info_var.set(str(self.cur_page + 1) + " / " + str(total_pages) if total_pages > 0 else "- / -")
-        self.display_title.set("视频" + self.select_video_name_str.get() +"的[3-2]战术集锦: " + str(len(self.videos)))
+        self.display_title.set("视频" + self.select_video_name_str.get() +"的[ 3-2 ]战术集锦: " + str(len(self.videos)))
 
         self.display()
 
