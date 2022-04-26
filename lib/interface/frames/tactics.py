@@ -1,11 +1,8 @@
 """
 各类视频的战术分析集锦片段, 由Library Frame修改而来
 """
-import os, time
 import math
 import tkinter, tkinter.ttk as ttk
-from tkinter import filedialog
-from PIL import Image, ImageTk
 
 from lib.constant import constant
 from lib.interface.common import slots
@@ -94,17 +91,17 @@ class TacticsFrame:
         # videos的下拉列表
         self.select_video_name_str = tkinter.StringVar()
         self.video_combobox = ttk.Combobox(self.main_plane, textvariable=self.select_video_name_str)
-        self.video_combobox.place(relx=0.77, rely=0.02, relwidth=0.165, relheight=0.06)
+        self.video_combobox.place(relx=0.76, rely=0.02, relwidth=0.165, relheight=0.06)
         self.video_combobox["state"] = "readonly"
         self.video_combobox.bind("<<ComboboxSelected>>", self.select_video)
 
         # 选择展示不同的战术组合
         self.t21_btn = ttk.Label(self.main_plane, text="[2-1]", anchor='center')
-        self.t21_btn.place(relx=0.69, rely=0.02, relwidth=0.035, relheight=0.06)
+        self.t21_btn.place(relx=0.68, rely=0.02, relwidth=0.035, relheight=0.06)
         self.t21_btn.config(style=constant.DESC_TEXT_STYLE_NAME)
 
         self.t32_btn = ttk.Label(self.main_plane, text="[3-2]", anchor='center')
-        self.t32_btn.place(relx=0.73, rely=0.02, relwidth=0.035, relheight=0.06)
+        self.t32_btn.place(relx=0.72, rely=0.02, relwidth=0.035, relheight=0.06)
         self.t32_btn.config(style=constant.DESC_TEXT_STYLE_NAME)
 
         self.t21_btn.bind('<Button-1>', self.filter_21_tactics)
@@ -114,6 +111,8 @@ class TacticsFrame:
         self.back_btn = ttk.Label(self.main_plane, text="返回", anchor='center')
         self.back_btn.place(relx=0.94, rely=0.015, relwidth=0.06, relheight=0.055)
         self.back_btn.config(style=constant.TITLE_TEXT_STYLE_NAME)
+
+        self.back_btn.bind('<Button-1>', self.back_to_library)
 
         # next prev btn 上一页下一页的按钮
         self.pages_ctl_plane = ttk.Frame(self.main_plane)
@@ -220,7 +219,7 @@ class TacticsFrame:
 
         self.display()
 
-    def back_to_library(self):
+    def back_to_library(self, event = None):
         """
         返回到素材面板
         """
@@ -258,5 +257,5 @@ class TacticsFrame:
         """
         for card in self.display_cards_list:
             card.destory()
-        self.main_plane.destroy()
+        self.top_panel.destroy()
 

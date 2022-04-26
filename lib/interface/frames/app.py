@@ -8,7 +8,6 @@ from lib.constant import constant
 from lib.dataprocess import check_exists
 from ..frames import welcome, library, player, tactics
 from ..common import slots, datahub
-from ..data import video
 
 class App:
 
@@ -116,12 +115,12 @@ class App:
         # 欢迎界面只会展示一次
         if self.welcome_frame is not None:
             self.welcome_frame.destory()
-
         if window_code == constant.SWITCH_WELCOME_FRAME_CODE:
             self.welcome_frame = welcome.WelcomeFrame(self.window)
         elif window_code == constant.SWITCH_LIBRARY_FRAME_CODE:
             if self.player_frame is not None:
                 self.player_frame.destroy()
+                self.player_frame = None
             if self.tactic_frame is not None:
                 self.tactic_frame.destory()
                 self.tactic_frame = None
@@ -133,12 +132,9 @@ class App:
                 self.player_frame = player.PlayerFrame(self.window, kwarg["video"])
             else:
                 self.player_frame = player.PlayerFrame(self.window, None)
-        
         elif window_code == constant.SWITCH_TACTICS_FRAME_CODE:
-            # 切换到战术信息展示页面
-            if self.tactic_frame is None:
+            if self.tactic_frame is None:  # 切换到战术信息展示页面 在原始的Library界面上做了一层覆盖
                 self.tactic_frame = tactics.TacticsFrame(self.window)
-
         else:
             raise NotImplementedError
 
