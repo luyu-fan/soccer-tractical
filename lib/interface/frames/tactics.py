@@ -29,7 +29,7 @@ class TacticsFrame:
         self.show_tactic_type = constant.TACTIC_21 if (default_tatic_type is None or default_tatic_type == constant.TACTIC_21) else constant.TACTIC_32
         
         # 分页设置
-        self.cap_in_page = 8       # 每页最多显示的数目
+        self.cap_in_page = 10      # 每页最多显示的数目
         self.total_page = 0        # 动态计算的页总数
         self.cur_page = 0          # 当前页
         self.cur_start_index = 0   # 当前页对应的起始索引  
@@ -196,7 +196,7 @@ class TacticsFrame:
 
         # 视频展示
         self.pages_info_var.set(str(self.cur_page + 1) + " / " + str(total_pages) if total_pages > 0 else "- / -")
-        self.display_title.set("视频" + self.select_video_name_str.get() +"的2-1战术集锦: " + str(len(self.videos)))
+        self.display_title.set("视频" + self.select_video_name_str.get() +"的[2-1]战术集锦: " + str(len(self.videos)))
 
         self.display()
     
@@ -222,7 +222,7 @@ class TacticsFrame:
 
         # 视频展示
         self.pages_info_var.set(str(self.cur_page + 1) + " / " + str(total_pages) if total_pages > 0 else "- / -")
-        self.display_title.set("视频" + self.select_video_name_str.get() +"的3-2战术集锦: " + str(len(self.videos)))
+        self.display_title.set("视频" + self.select_video_name_str.get() +"的[3-2]战术集锦: " + str(len(self.videos)))
 
         self.display()
 

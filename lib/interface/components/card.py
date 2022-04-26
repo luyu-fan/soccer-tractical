@@ -3,7 +3,7 @@
 """
 from tkinter import ttk
 import tkinter
-from PIL import Image, ImageTk
+from PIL import ImageTk
 
 from lib.constant import constant
 from lib.interface.common import slots
@@ -48,11 +48,12 @@ class VideoCard:
         self.plane_height = self.cover_plane.winfo_height()
         
         # 标题
-        self.title_plane = ttk.Frame(self.card)
-        self.title_plane.place(relx=0.0, rely=0.7, relwidth=1.0, relheight=0.15)
-        self.title_label = ttk.Label(self.title_plane, text="视频:" + self.video.get_name())
-        self.title_label.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
-        self.title_label.config(style=constant.DESC_TEXT_STYLE_NAME)
+        if not self.video.is_seg:
+            self.title_plane = ttk.Frame(self.card)
+            self.title_plane.place(relx=0.0, rely=0.7, relwidth=1.0, relheight=0.15)
+            self.title_label = ttk.Label(self.title_plane, text="视频:" + self.video.get_name())
+            self.title_label.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
+            self.title_label.config(style=constant.DESC_TEXT_STYLE_NAME)
 
         self.video.cover_update_handler = self.set_cover
         self.video.status_update_handler = self.set_status_info
@@ -61,12 +62,13 @@ class VideoCard:
             self.set_cover()
 
         # 状态或时长
-        self.video_info_var = tkinter.StringVar(value="时长(帧数): " + str(self.video.get_frames()))
-        self.video_info_plane = ttk.Frame(self.card)
-        self.video_info_plane.place(relx=0.0, rely=0.85, relwidth=1.0, relheight=0.15)
-        self.video_info_label = ttk.Label(self.video_info_plane, textvariable = self.video_info_var)
-        self.video_info_label.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
-        self.video_info_label.config(style=constant.DESC_TEXT_STYLE_NAME)
+        if not self.video.is_seg:
+            self.video_info_var = tkinter.StringVar(value="时长(帧数): " + str(self.video.get_frames()))
+            self.video_info_plane = ttk.Frame(self.card)
+            self.video_info_plane.place(relx=0.0, rely=0.85, relwidth=1.0, relheight=0.15)
+            self.video_info_label = ttk.Label(self.video_info_plane, textvariable = self.video_info_var)
+            self.video_info_label.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
+            self.video_info_label.config(style=constant.DESC_TEXT_STYLE_NAME)
 
     def set_cover(self):
         """
@@ -84,7 +86,8 @@ class VideoCard:
         """
         设置状态信息
         """
-        self.video_info_var.set(info)
+        if not self.video.is_seg:
+            self.video_info_var.set(info)
 
     def dbclick_play(
         self,
