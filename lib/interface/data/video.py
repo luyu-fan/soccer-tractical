@@ -23,7 +23,7 @@ from lib.interface.common import datahub
  
 from lib.net import client
 
-class FSM:
+class ProcessFSM:
     """
     用于数据自动处理的有限状态机
     """
@@ -51,21 +51,71 @@ class FSM:
         # 状态字典
         self.window = Window(frames_result, window_size, activate_thres)
         self.states_map = {
-            FSM.SEEK: SeekState(),
-            FSM.CANDIDATE: CandidateState(),
-            FSM.FIX: FixState(),
+            ProcessFSM.SEEK: SeekState(),
+            ProcessFSM.CANDIDATE: CandidateState(),
+            ProcessFSM.FIX: FixState(),
         }
 
     def run(self):
         """
         FSM后修复检测的主循环
         """
-        next_state_name = FSM.SEEK
+        next_state_name = ProcessFSM.SEEK
         while True:
             cur_state = self.states_map[next_state_name]
             next_state_name = cur_state.do(self.window)
-            if next_state_name == FSM.FINISH:
+            if next_state_name == ProcessFSM.FINISH:
                 return
+
+class TacticFSM:
+
+    """
+    用于战术分析挖掘的有限状态机
+    """
+
+    IDLE = 0               # 未激活的状态
+    TACTIC_21_INIT = 1     # 初始化激活状态 即新传入了一个踢球者
+    TACTIC_21_PRE = 2      # 前半阶段 即已经找到了两个同队的球员他们之间在踢球
+
+    def __init__(self) -> None:
+        pass
+
+    def run(
+        detections,  # 传入视频片段中跟踪数据中的所有检测框
+    ):
+        """
+        利用到的主要参数:
+
+        detections: 视频片段中跟踪数据中的所有检测框
+
+        挖掘主流程:
+
+        1. 遍历循环 找到第一个踢球者
+
+        2. 从这个踢球者出发 往下找新的踢球者
+
+            1. 如果超过了挖掘窗口，退出
+            2. 如果是这个踢球者自身，继续
+            3. 如果是对方队伍，则更新踢球者重新在窗口内搜索
+            4. 如果是同队队伍，则找到了第二个踢球者
+
+        3. 从第二个踢球者出发 往下找新的踢球者
+
+            1. 如果超过了挖掘窗口，退出
+            2. 如果是这个踢球者自身，继续
+            3. 如果是对方队伍，则回退到之前的状态更新踢球者重新在窗口内搜索
+            4. 如果是同队队伍
+                1. 是之前的那个踢球者，则是一段潜在的二过一战术
+                2. 是新的踢球者，则有可能是一段潜在的三过二战术
+            
+        4. 如果是潜在的二过一战术
+            1. 基本上不怎么判断的情况下就可以直接将其作为二过一结果
+            2. 判断二过一的对方球员是谁
+            3. 判断是否的确过了这个球员
+
+        """
+
+        
             
 class Window:
 
@@ -239,11 +289,11 @@ class SeekState(ProcessState):
             det =  window.get_det(probe_index)
             if det is not None:
                 window.move(probe_index - window.get_start_index())
-                return FSM.CANDIDATE
+                return ProcessFSM.CANDIDATE
             else:
                 probe_index  += 1
         
-        return FSM.FINISH
+        return ProcessFSM.FINISH
 
 class CandidateState(ProcessState):
     """
@@ -268,7 +318,7 @@ class CandidateState(ProcessState):
         if window.get_start_index() >= window.get_total_result_num() - 1:
             # 忽略掉直接返回完成状态
             # TODO 应该考虑更详细的边界情况
-            return FSM.FINISH
+            return ProcessFSM.FINISH
 
         max_rate = -1
         max_index = -1
@@ -317,10 +367,10 @@ class CandidateState(ProcessState):
         # 如果当前窗口满足轨迹的连续性则返回修复状态 否则丢弃窗口左侧的检测进行下一个窗口探测
         if best_dxdy is not None:
             window.config_fix(max_index, best_dxdy)
-            return FSM.FIX
+            return ProcessFSM.FIX
         else:
             window.discard_det(window.get_start_index())
-            return FSM.SEEK
+            return ProcessFSM.SEEK
 
 class FixState(ProcessState):
     """
@@ -347,7 +397,7 @@ class FixState(ProcessState):
                 
         # 移动窗口
         window.move(window.size // 2 + 1)
-        return FSM.SEEK
+        return ProcessFSM.SEEK
         
 class Video:
 
@@ -636,7 +686,7 @@ class Video:
         # self.ball_list = result["ball"]
         # self.players_list = result['player']
         
-        fsm = FSM(
+        fsm = ProcessFSM(
             window_size=10,
             activate_thres=0.6,
             frames_result=self.ball_list,
