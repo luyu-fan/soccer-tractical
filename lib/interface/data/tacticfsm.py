@@ -17,7 +17,6 @@ class TacticFSM:
     SEEK_THIRD_STAGET_KICKER = 2  # 寻找踢球者的第三个阶段 找到第一个球员即可
     EXIT = 3
     SAVE = 4
-    
 
     def __init__(self, labels_dict) -> None:
 
