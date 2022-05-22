@@ -12,6 +12,7 @@ from sklearn.cluster import KMeans
 from lib.constant import constant
 from lib.dataprocess import check_exists
 from lib.dataprocess import prepare
+from lib.interface.data.tacticfsm import TacticFSM
 from lib.render import render
 from lib.interaction import interaction
 from lib.utils import team_shape
@@ -94,6 +95,9 @@ class Video:
         self.probe_kicker_oid = ""
         self.probe_kicker_up_frame_num = 0
         self.cur_frame_num = 1
+        
+        # TacticFSM
+        self.tactic_fsm = TacticFSM()
 
         # 在战术绘制时不合法的帧(过短导致)
         self.illegal_tactics_frames = set([])
@@ -131,7 +135,8 @@ class Video:
         """
         if self.get_status() == Video.LOADED:
             self.process_loaded(stop_event)   # 得到所有的标签
-            self.extract_tactics_segments()   # 抽取出所有的战术片段
+            # self.extract_tactics_segments()   # 抽取出所有的战术片段
+            self.extract_tactics_by_fsm()
         else:
             self.process_unprocess(stop_event)
 
@@ -240,6 +245,7 @@ class Video:
             frame_result = []
             ball_result = result["ball"]
             for bbox, oid in zip(ball_result[0], ball_result[1]):
+                print(bbox)
                 x1y1wh_box = ["Ball", oid, int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
                 frame_result.append(x1y1wh_box)
                 # cv2.rectangle(frame, (x1y1wh_box[2], x1y1wh_box[3]), (x1y1wh_box[2] + x1y1wh_box[4], x1y1wh_box[3] + x1y1wh_box[5]), color=(12,45,240), thickness=2)
@@ -917,6 +923,14 @@ class Video:
         
         # 添加
         datahub.DataHub.add_tactics(self.name, video_tactics_segs)
+
+    def extract_tactics_by_fsm(self):
+        """
+        利用FSM抽取2-1或者3-2战术
+        """
+        self.tactic_fsm.config(self.labels_dict)
+        extracted_result = self.tactic_fsm.run()
+        print(self.name, "-->", extracted_result)
     
     def copy_self(self):
         """
