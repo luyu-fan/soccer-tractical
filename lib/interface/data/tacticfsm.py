@@ -12,7 +12,7 @@ class Tactic:
     简单战术基类
     """
     def __init__(self, start_frame_num, end_frame_num):
-        self.start_frame_id = start_frame_num
+        self.start_frame_num = start_frame_num
         self.end_frame_num = end_frame_num
 
 class Tactic21(Tactic):
@@ -35,9 +35,9 @@ class Tactic21(Tactic):
         """
         self.kicker2_frame_num = kicker2_frame_num
         self.tactic_type = tactic_type
-        self.kicker1_id = kicker1_id
-        self.kicker2_id = kicker2_id
-        self.front_id = front_id
+        self.kicker1_oid = kicker1_id
+        self.kicker2_oid = kicker2_id
+        self.front_oid = front_id
 
 class TacticFSM:
 
@@ -239,7 +239,7 @@ class TacticFSM:
                 
                 # 因为计算外积时使用的是右手螺旋定理所以应该所有值小于0才能说明是在三角形包围的内部
                 if v1 < 0 and v2 < 0 and v3 < 0:
-                    self.tactic_list.append(Tactic21(self.first_kicker_frame_id, self.next_frame_id -1, self.second_kicker_frame_id, "2-1", self.first_kicker.oid, self.second_kicker.oid, front_player.oid))
+                    self.tactic_list.append(Tactic21(self.first_kicker_frame_id, self.next_frame_id - 1, self.second_kicker_frame_id, "2-1", self.first_kicker.oid, self.second_kicker.oid, front_player.oid))
             return TacticFSM.SEEK_FIRST_STAGET_KICKER
 
         elif kicker.oid == self.second_kicker.oid:

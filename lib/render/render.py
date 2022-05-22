@@ -17,7 +17,7 @@ def renderArrow(frame, kicker, velocity, color = (32, 64, 96)):
     frame = cv2.circle(frame, src_point, radius=10, color=color, thickness=-1)
     return frame
 
-def renderTractical_batch(frame, bboxes, color = (32, 64, 96)):
+def renderTactic_batch(frame, bboxes, color = (32, 64, 96)):
     """
     批量阵型对应的连接线条
     """
@@ -31,7 +31,7 @@ def renderTractical_batch(frame, bboxes, color = (32, 64, 96)):
     cv2.polylines(frame, render_lines, False, color, thickness = 2, lineType=cv2.LINE_AA)
     return frame
 
-def renderTracticalWithArrow_batch(frame, bboxes, color = (32, 64, 96)):
+def renderTacticWithArrow_batch(frame, bboxes, color = (32, 64, 96)):
     """
     批量阵型对应的连接线条,附加有箭头，效率比较低下
     """

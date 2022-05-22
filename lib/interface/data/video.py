@@ -643,6 +643,63 @@ class Video:
         self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " get kicker velocity finished.")
         return velocity
 
+    def render_tactic(
+        self,
+        frame,
+    ):
+        """
+        渲染得到的战术数据
+        """
+        if self.cur_frame_num not in self.tactics_map:
+            return frame
+        tactic = self.tactics_map[self.cur_frame_num]
+        
+        if tactic.tactic_type == "2-1":
+            frame = self.render_21(frame, tactic)
+        else:
+            frame = self.render_32(frame, tactic)
+        return frame
+
+    def render_21(
+        self,
+        frame,
+        tactic,
+    ):
+        """
+        渲染2-1战术
+        """
+        frame_record = self.__load_frame_data()
+        kicker1 = None
+        kicker2 = None
+        front_enmey = None
+        for bbox in frame_record["bbox"]:
+            if bbox.cls not in ["A", "B"]:
+                continue
+            if bbox.oid == tactic.kicker1_oid:
+                kicker1 = bbox
+            if bbox.oid ==  tactic.kicker2_oid:
+                kicker2 = bbox
+            if bbox.oid == tactic.front_oid:
+                front_enmey = bbox
+        
+        # 渲染线条
+        frame = render.renderTacticWithArrow_batch(frame, [kicker1, kicker2], color = (180,66,48))
+        frame = render.renderTacticWithArrow_batch(frame, [front_enmey], color = (20,20,160))
+        frame = render.renderTacticWithArrow_batch(frame, [kicker1, front_enmey], color = (0,160,160))
+
+        return frame
+
+    def render_32(
+        self,
+        frame,
+        tactic,
+    ):
+        """
+        绘制3-2战术
+        """
+        ... # TODO
+        return frame
+
     def __render_tactic(
         self,
         frame,
@@ -722,12 +779,12 @@ class Video:
 
         # 战术绘制
         if front_player is not None:
-            # frame = render.renderTractical_batch(frame, self_render_bbox, color = (180,66,48))
-            # frame = render.renderTractical_batch(frame, enemy_render_bbox, color = (20,20,160))
-            # frame = render.renderTractical_batch(frame, [cur_kicker, front_player], color = (0,160,160))
-            frame = render.renderTracticalWithArrow_batch(frame, self_render_bbox, color = (180,66,48))
-            frame = render.renderTracticalWithArrow_batch(frame, enemy_render_bbox, color = (20,20,160))
-            frame = render.renderTracticalWithArrow_batch(frame, [cur_kicker, front_player], color = (0,160,160))
+            # frame = render.renderTactic_batch(frame, self_render_bbox, color = (180,66,48))
+            # frame = render.renderTactic_batch(frame, enemy_render_bbox, color = (20,20,160))
+            # frame = render.renderTactic_batch(frame, [cur_kicker, front_player], color = (0,160,160))
+            frame = render.renderTacticWithArrow_batch(frame, self_render_bbox, color = (180,66,48))
+            frame = render.renderTacticWithArrow_batch(frame, enemy_render_bbox, color = (20,20,160))
+            frame = render.renderTacticWithArrow_batch(frame, [cur_kicker, front_player], color = (0,160,160))
             self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render tactic finished.")
 
         return frame
@@ -789,7 +846,9 @@ class Video:
 
                 # 8. 绘制3-2战术或者是绘制2-1战术
                 if btn_cfg.show_tactic_flag:
-                    frame = self.__render_tactic(frame, cur_kicker, cur_velocity, surroundings)
+                    # 之前旧的可以转换为
+                    # frame = self.__render_tactic(frame, cur_kicker, cur_velocity, surroundings)
+                    frame = self.render_tactic(frame)
                 
         self.cur_frame_num += 1
         if not btn_cfg.play_flag:
@@ -928,10 +987,15 @@ class Video:
         """
         利用FSM抽取2-1或者3-2战术
         """
+        # TODO copy
         self.tactic_fsm.config(self.labels_dict)
-        extracted_result = self.tactic_fsm.run()
-        print(self.name, "-->", extracted_result)
-    
+        tactics_list = self.tactic_fsm.run()
+        # fast cache
+        self.tactics_map = {}
+        for tactic in tactics_list:
+            for i in range(tactic.start_frame_num, tactic.end_frame_num + 1):
+                self.tactics_map[i] = tactic
+        
     def copy_self(self):
         """
         产生一份自己的拷贝 以供修改
