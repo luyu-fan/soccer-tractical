@@ -18,7 +18,7 @@ def video2images(
     将一段视频给切分好若干帧放在文件夹中
     """
     print("-" * 120)
-    print("Raw Images Splitting Start!")
+    print("Raw Images Splitting Start! Default Resize Resolution is 1280 x 720 for a better visualization")
     videoPath = os.path.join(get_relative_data_path(), "videos", videoName) if video_path is None else video_path
     video = cv2.VideoCapture(videoPath)
     fid = 1
@@ -28,6 +28,7 @@ def video2images(
             make_folder(imgsFolder)
         success, frame = video.read()
         while success:
+            frame = cv2.resize(frame, (1280, 720), cv2.INTER_CUBIC)
             write_frame(frame, fid, imgsFolder)
             success, frame = video.read()
             fid += 1
