@@ -2,7 +2,6 @@
 简单战术识别有限状态机
 """
 import math
-from tkinter.messagebox import NO
 
 from lib.interaction import interaction
 
@@ -173,7 +172,8 @@ class TacticFSM:
             # 如果找到了不相同的kicker则需要判断他们是否同属于同一个阵营
             if kicker.cls == self.first_kicker.cls:
                 # 同一个阵营内则直接将其作为第二个kicker
-                # TODO 对于那些不一定非要有回传的情况是否能够判断出来 情况更复杂 那些球场上的边角几乎无法判断 现在的算法只能假设是必须有回传的情况
+                # TODO 对于那些不一定非要有回传的情况是否能够判断出来情况更复杂 
+                # 那些球场上的边角几乎无法判断 现在的算法只能假设是必须有回传的情况
                 self.second_kicker = kicker
                 self.second_kicker_frame_id = self.next_frame_id - 1
                 return TacticFSM.SEEK_THIRD_STAGET_KICKER

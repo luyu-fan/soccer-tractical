@@ -17,7 +17,7 @@ def renderArrow(frame, kicker, velocity, color = (32, 64, 96)):
     frame = cv2.circle(frame, src_point, radius=10, color=color, thickness=-1)
     return frame
 
-def renderTactic_batch(frame, bboxes, color = (32, 64, 96)):
+def renderThrow_batch(frame, bboxes, color = (32, 64, 96)):
     """
     批量阵型对应的连接线条
     """
@@ -28,7 +28,7 @@ def renderTactic_batch(frame, bboxes, color = (32, 64, 96)):
         lines.append(line_points)
         last_point = point
     render_lines = np.asarray(lines, dtype=np.int32)
-    cv2.polylines(frame, render_lines, False, color, thickness = 2, lineType=cv2.LINE_AA)
+    cv2.polylines(frame, render_lines, False, color, thickness = 3, lineType=cv2.LINE_AA)
     return frame
 
 def renderTacticWithArrow_batch(frame, bboxes, color = (32, 64, 96)):

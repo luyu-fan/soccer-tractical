@@ -134,7 +134,7 @@ class Video:
             stop_event: 退出事件信号
         """
         if self.get_status() == Video.LOADED:
-            self.process_loaded(stop_event)   # 得到所有的标签
+            self.process_loaded(stop_event)     # 得到所有的标签
             # self.extract_tactics_segments()   # 抽取出所有的战术片段
             self.extract_tactics_by_fsm()
         else:
@@ -542,7 +542,6 @@ class Video:
                         self.probe_kicker_cls = tmp_probe_kicker.cls
                         self.probe_kicker_oid = tmp_probe_kicker.oid
                         break
-
                 frame_probe_num += 1
                 probe_ttl -= 1
         
@@ -643,6 +642,114 @@ class Video:
         self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " get kicker velocity finished.")
         return velocity
 
+    # def __render_tactic(
+    #     self,
+    #     frame,
+    #     cur_kicker,
+    #     velocity,
+    #     surroundings,
+    # ):
+    #     """
+    #     绘制战术
+    #     TODO 直接利用战术分析部分的数据而不是再分析一遍
+    #     """
+    #     self_player_bbox = []
+    #     enemy_player_bbox = []
+    #     front_player = None
+    #     front_measure_score = 0
+
+    #     # print("Surroundings:", len(surroundings[0]), len(surroundings[1]), cur_kicker, velocity)
+    #     # 根据当前速度选择
+    #     if velocity is not None:
+    #         # 从同队中选择球员
+    #         for bbox in surroundings[0]:
+    #             # 计算是否与运动方向同向
+    #             cosx = self.calc_cosx(bbox, cur_kicker, velocity)
+    #             if (cosx is not None) and cosx > - 0.6:
+    #                 # 计算像素距离
+    #                 pixel_dist = interaction.calc_distance_in_pixel((cur_kicker.xcenter, cur_kicker.ycenter), (bbox.xcenter, bbox.ycenter))
+    #                 self_player_bbox.append((bbox, cosx, pixel_dist))
+    #         self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get self-tactic finished.")
+
+    #         # 从另外一队中先选择一个和当前kicker前方的球员
+    #         for bbox in surroundings[1]:
+    #             # 计算是否与运动方向同向
+    #             cosx = self.calc_cosx(bbox, cur_kicker, velocity)
+    #             if cosx is not None:
+    #                 pixel_dist = interaction.calc_distance_in_pixel((cur_kicker.xcenter, cur_kicker.ycenter), (bbox.xcenter, bbox.ycenter))
+    #                 tmp_score = cosx * (1 / math.exp(0.1 * pixel_dist))
+    #                 if tmp_score > front_measure_score:
+    #                     front_measure_score = tmp_score
+    #                     front_player = bbox
+
+    #         self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get front player finished.")
+
+    #         # 从另外一队中选择能够和front_player配合的球员
+    #         if front_player is not None:
+    #             for bbox in surroundings[1]:
+    #             # 计算是否与运动方向同向
+    #                 cosx = self.calc_cosx(bbox, front_player, velocity)
+    #                 if cosx is not None and abs(cosx) <= 0.3:
+    #                     pixel_dist = interaction.calc_distance_in_pixel((front_player.xcenter, front_player.ycenter), (bbox.xcenter, bbox.ycenter))
+    #                     enemy_player_bbox.append((bbox, abs(cosx), pixel_dist))
+    #         self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get enemy-tactic finished.")
+
+    #     # print(self_player_bbox)
+    #     self_player_bbox = sorted(self_player_bbox, key=lambda x: x[1] * (1 / math.exp(0.1 * x[2])), reverse=True)
+    #     self_render_bbox = [bbox for (bbox, _, _) in self_player_bbox]
+    #     self_render_bbox.insert(0, cur_kicker)
+    #     enemy_player_bbox = sorted(enemy_player_bbox, key=lambda x: -(x[1] * x[2]), reverse=True)
+    #     enemy_render_bbox = [bbox for (bbox, _, _) in enemy_player_bbox]
+
+    #     if front_player is not None: enemy_render_bbox.insert(0, front_player)
+        
+    #     if len(enemy_render_bbox) >= 2 and len(self_render_bbox) >= 3:
+    #         # 3-2战术
+    #         self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " 3-2 tactic finished.")
+    #         self_render_bbox = self_render_bbox[:3]
+    #         enemy_render_bbox = enemy_render_bbox[:2]
+    #         self_render_bbox.append(cur_kicker)
+    #     elif len(enemy_render_bbox) >= 1 and len(self_render_bbox) >= 2:
+    #         # 2-1战术
+    #         self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " 2-1 tactic finished.")
+    #         self_render_bbox = self_render_bbox[:2]
+    #         enemy_render_bbox = enemy_render_bbox[:1]
+    #     else:
+    #         # TODO 实现其余战术
+    #         front_player = None
+    #         ...
+
+    #     # 战术绘制
+    #     if front_player is not None:
+    #         # frame = render.renderTactic_batch(frame, self_render_bbox, color = (180,66,48))
+    #         # frame = render.renderTactic_batch(frame, enemy_render_bbox, color = (20,20,160))
+    #         # frame = render.renderTactic_batch(frame, [cur_kicker, front_player], color = (0,160,160))
+    #         frame = render.renderTacticWithArrow_batch(frame, self_render_bbox, color = (180,66,48))
+    #         frame = render.renderTacticWithArrow_batch(frame, enemy_render_bbox, color = (20,20,160))
+    #         frame = render.renderTacticWithArrow_batch(frame, [cur_kicker, front_player], color = (0,160,160))
+    #         self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render tactic finished.")
+
+    #     return frame
+
+    def render_throwlines(
+        self,
+        kicker,
+        frame,
+    ):
+        """
+        仅仅绘制传球路径(包括了同队之间的传球和另外一队的截断)
+        """
+        frame_record = self.__load_frame_data()
+        next_kicker = self.__find_next_kicker(kicker, frame_record)
+        if next_kicker is None:
+            return frame
+        if kicker.oid != next_kicker.oid:
+            for bbox in frame_record["bbox"]:
+                if bbox.oid == next_kicker.oid:
+                    frame = render.renderThrow_batch(frame, [kicker, bbox], color = (220, 0, 220))
+                    break
+        return frame
+    
     def render_tactic(
         self,
         frame,
@@ -654,7 +761,7 @@ class Video:
             return frame
         tactic = self.tactics_map[self.cur_frame_num]
         
-        if tactic.tactic_type == "2-1":
+        if tactic.tactic_type == constant.TACTIC_21:
             frame = self.render_21(frame, tactic)
         else:
             frame = self.render_32(frame, tactic)
@@ -698,95 +805,6 @@ class Video:
         绘制3-2战术
         """
         ... # TODO
-        return frame
-
-    def __render_tactic(
-        self,
-        frame,
-        cur_kicker,
-        velocity,
-        surroundings,
-    ):
-        """
-        绘制战术
-        TODO 直接利用战术分析部分的数据而不是再分析一遍
-        """
-        self_player_bbox = []
-        enemy_player_bbox = []
-        front_player = None
-        front_measure_score = 0
-
-        # print("Surroundings:", len(surroundings[0]), len(surroundings[1]), cur_kicker, velocity)
-        # 根据当前速度选择
-        if velocity is not None:
-            # 从同队中选择球员
-            for bbox in surroundings[0]:
-                # 计算是否与运动方向同向
-                cosx = self.calc_cosx(bbox, cur_kicker, velocity)
-                if (cosx is not None) and cosx > - 0.6:
-                    # 计算像素距离
-                    pixel_dist = interaction.calc_distance_in_pixel((cur_kicker.xcenter, cur_kicker.ycenter), (bbox.xcenter, bbox.ycenter))
-                    self_player_bbox.append((bbox, cosx, pixel_dist))
-            self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get self-tactic finished.")
-
-            # 从另外一队中先选择一个和当前kicker前方的球员
-            for bbox in surroundings[1]:
-                # 计算是否与运动方向同向
-                cosx = self.calc_cosx(bbox, cur_kicker, velocity)
-                if cosx is not None:
-                    pixel_dist = interaction.calc_distance_in_pixel((cur_kicker.xcenter, cur_kicker.ycenter), (bbox.xcenter, bbox.ycenter))
-                    tmp_score = cosx * (1 / math.exp(0.1 * pixel_dist))
-                    if tmp_score > front_measure_score:
-                        front_measure_score = tmp_score
-                        front_player = bbox
-
-            self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get front player finished.")
-
-            # 从另外一队中选择能够和front_player配合的球员
-            if front_player is not None:
-                for bbox in surroundings[1]:
-                # 计算是否与运动方向同向
-                    cosx = self.calc_cosx(bbox, front_player, velocity)
-                    if cosx is not None and abs(cosx) <= 0.3:
-                        pixel_dist = interaction.calc_distance_in_pixel((front_player.xcenter, front_player.ycenter), (bbox.xcenter, bbox.ycenter))
-                        enemy_player_bbox.append((bbox, abs(cosx), pixel_dist))
-            self.log(Video.DEBUG, "Frame " + str(self.cur_frame_num) + " get enemy-tactic finished.")
-
-        # print(self_player_bbox)
-        self_player_bbox = sorted(self_player_bbox, key=lambda x: x[1] * (1 / math.exp(0.1 * x[2])), reverse=True)
-        self_render_bbox = [bbox for (bbox, _, _) in self_player_bbox]
-        self_render_bbox.insert(0, cur_kicker)
-        enemy_player_bbox = sorted(enemy_player_bbox, key=lambda x: -(x[1] * x[2]), reverse=True)
-        enemy_render_bbox = [bbox for (bbox, _, _) in enemy_player_bbox]
-
-        if front_player is not None: enemy_render_bbox.insert(0, front_player)
-        
-        if len(enemy_render_bbox) >= 2 and len(self_render_bbox) >= 3:
-            # 3-2战术
-            self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " 3-2 tactic finished.")
-            self_render_bbox = self_render_bbox[:3]
-            enemy_render_bbox = enemy_render_bbox[:2]
-            self_render_bbox.append(cur_kicker)
-        elif len(enemy_render_bbox) >= 1 and len(self_render_bbox) >= 2:
-            # 2-1战术
-            self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " 2-1 tactic finished.")
-            self_render_bbox = self_render_bbox[:2]
-            enemy_render_bbox = enemy_render_bbox[:1]
-        else:
-            # TODO 实现其余战术
-            front_player = None
-            ...
-
-        # 战术绘制
-        if front_player is not None:
-            # frame = render.renderTactic_batch(frame, self_render_bbox, color = (180,66,48))
-            # frame = render.renderTactic_batch(frame, enemy_render_bbox, color = (20,20,160))
-            # frame = render.renderTactic_batch(frame, [cur_kicker, front_player], color = (0,160,160))
-            frame = render.renderTacticWithArrow_batch(frame, self_render_bbox, color = (180,66,48))
-            frame = render.renderTacticWithArrow_batch(frame, enemy_render_bbox, color = (20,20,160))
-            frame = render.renderTacticWithArrow_batch(frame, [cur_kicker, front_player], color = (0,160,160))
-            self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " render tactic finished.")
-
         return frame
 
     def get_one_rendered_frame(
@@ -843,12 +861,14 @@ class Video:
                         frame = self.__render_velocity(frame, cur_kicker, cur_velocity, color = (240,129,12))
                     if probe_velocity is not None and probe_kicker is not None:
                         frame = self.__render_velocity(frame, probe_kicker, probe_velocity, color = (12,129,240))
+                # 绘制传球路径
+                if btn_cfg.show_tactic_flag and self.cur_frame_num not in self.tactics_map:
+                    frame = self.render_throwlines(cur_kicker, frame)
 
-                # 8. 绘制3-2战术或者是绘制2-1战术
-                if btn_cfg.show_tactic_flag:
-                    # 之前旧的可以转换为
-                    # frame = self.__render_tactic(frame, cur_kicker, cur_velocity, surroundings)
-                    frame = self.render_tactic(frame)
+        # 8. 绘制3-2战术或者是绘制2-1战术
+        if btn_cfg.show_tactic_flag:
+            # 利用新的战术函数来完成2-1或者3-2渲染部分
+            frame = self.render_tactic(frame)
                 
         self.cur_frame_num += 1
         if not btn_cfg.play_flag:
@@ -992,9 +1012,28 @@ class Video:
         tactics_list = self.tactic_fsm.run()
         # fast cache
         self.tactics_map = {}
+        video_tactics_segs = [[],[]]
         for tactic in tactics_list:
             for i in range(tactic.start_frame_num, tactic.end_frame_num + 1):
-                self.tactics_map[i] = tactic
+                self.tactics_map[i] = tactic 
+        for tactic in tactics_list:
+            if tactic.tactic_type == constant.TACTIC_21:
+                seg = self.copy_self()
+                seg.tactic_type = constant.TACTIC_21
+                seg.cur_frame_num = tactic.start_frame_num
+                seg.start_frame_num = tactic.start_frame_num
+                seg.end_frame_num = tactic.end_frame_num
+                video_tactics_segs[0].append(seg)
+            if tactic.tactic_type == constant.TACTIC_32:
+                seg = self.copy_self()
+                seg.tactic_type = constant.TACTIC_32
+                seg.cur_frame_num = tactic.start_frame_num
+                seg.start_frame_num = tactic.start_frame_num
+                seg.end_frame_num = tactic.end_frame_num
+                video_tactics_segs[1].append(seg)
+        self.cur_frame_num = 1
+        # 添加
+        datahub.DataHub.add_tactics(self.name, video_tactics_segs)
         
     def copy_self(self):
         """
@@ -1007,6 +1046,7 @@ class Video:
         new_video.upload_video_path = self.upload_video_path
         new_video.illegal_tactics_frames = self.illegal_tactics_frames
         new_video.labels_dict = self.labels_dict
+        new_video.tactics_map = self.tactics_map
 
         return new_video
         
