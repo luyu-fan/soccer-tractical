@@ -789,9 +789,12 @@ class Video:
                 front_enmey = bbox
         
         # 渲染线条
-        frame = render.renderTacticWithArrow_batch(frame, [kicker1, kicker2], color = (180,66,48))
-        frame = render.renderTacticWithArrow_batch(frame, [front_enmey], color = (20,20,160))
-        frame = render.renderTacticWithArrow_batch(frame, [kicker1, front_enmey], color = (0,160,160))
+        if kicker1 is not None and kicker2 is not None:
+            frame = render.renderTacticWithArrow_batch(frame, [kicker1, kicker2], color = (180,66,48))
+        if front_enmey is not None:
+            frame = render.renderTacticWithArrow_batch(frame, [front_enmey], color = (20,20,160))
+        if kicker1 is not None and front_enmey is not None:
+            frame = render.renderTacticWithArrow_batch(frame, [kicker1, front_enmey], color = (0,160,160))
 
         return frame
 
