@@ -65,8 +65,8 @@ class TacticFSM:
         self.window_base_index = None
         self.window_cur_index = None
 
-        self.seek_window_size = 100
-        self.surroundings_max_thres = 300
+        self.seek_window_size = 45
+        self.surroundings_max_thres = 600
 
         self.tactic_list = []    # 记录找到的所有战术对象
         self.fsm_state = TacticFSM.SEEK_FIRST_STAGET_KICKER
@@ -152,8 +152,7 @@ class TacticFSM:
             self.first_kicker = None
             self.first_kicker_frame_id = None
             return TacticFSM.EXIT
-
-        
+  
     def seek_second_kicker(self):
         """
         找到第一个踢球者之后去搜索第二个踢球者
@@ -169,6 +168,9 @@ class TacticFSM:
         if kicker is None:  
             # 窗口内没有找到新的踢球者只能从第一个踢球者重新搜索
             return TacticFSM.SEEK_FIRST_STAGET_KICKER
+
+
+        # 先采用O(kn)的时间复杂度完成搜索 有机会再完成优化
         elif kicker.oid == self.first_kicker.oid and kicker.cls == self.first_kicker.cls:
             # 说明第一个kicker踢球的时间比较长一直在占有球可以适当往后挪一下位置继续搜索即可
             if self.window_cur_index - self.first_kicker_frame_id >= self.seek_window_size // 2:
@@ -176,19 +178,16 @@ class TacticFSM:
                 self.first_kicker_frame_id = self.window_cur_index - 1
             return TacticFSM.SEEK_SECOND_STAGET_KICKER
         else:
-            # 先采用O(kn)的时间复杂度完成搜索
             if (kicker.cls == self.first_kicker.cls) and (kicker.oid != self.first_kicker.oid) and self.get_distance(self.first_kicker, kicker) >= 50:
                 # 同一个阵营内则直接将其作为第二个kicker
                 # TODO 对于那些不一定非要有回传的情况是否能够判断出来情况更复杂 
                 # 那些球场上的边角几乎无法判断 现在的算法只能假设是必须有回传的情况
-                # print("first:",self.first_kicker.oid, "second:", kicker.oid, self.next_frame_id, self.first_kicker, self.window_cur_index)
                 self.second_kicker = kicker
                 self.second_kicker_frame_id = self.window_cur_index - 1
                 return TacticFSM.SEEK_THIRD_STAGET_KICKER
             else:
                 # 其余的任何条件都不管继续搜索第二个kicker
                 return TacticFSM.SEEK_SECOND_STAGET_KICKER
-
 
     def seek_third_kicker(self):
         """
@@ -208,48 +207,69 @@ class TacticFSM:
             # 即判断由第一次kicker 和第二次kicker 以及第三次kicker组成的三个向量 最终是否包围了对方潜在的目标即可
             # 对方的目标是以第一次或者第二次kicker找到的最近的目标
             # 1. 获取kicker2对应的一个记录情况
-            
-            kicker2_frame_record = self.load_frame_data(self.second_kicker_frame_id)
-            kicker1_2_kicker2_direction = self.get_direction(self.first_kicker, self.second_kicker)
+            kicker1_frame_record = self.load_frame_data(self.first_kicker_frame_id)
+            kicker1_kicker2_direction = self.get_direction(self.first_kicker, self.second_kicker)
 
-            # 2. 以kicker1为准选择最有威胁的球员
+            # 2. 选择最有威胁的球员 对于每个潜在位置计算对应的对方球员
             # (正好拦在踢球队员的前方道路上且最近 由于都在运动 那么实际上在处理的时候可以做一下权衡 即利用第二个关键点位置时的记录来计算方向向量)
-            _, enemy_surroundings = self.get_surroundings(self.first_kicker, kicker2_frame_record)
-            front_player = None
-            front_measure_score = 0
-            for bbox in enemy_surroundings:
-                # 计算kicker1和kicker2传递球的路线中最靠近的那个点 即这个时候为运动过程中最可能的拦截球员
-                tmp_direction = self.get_direction(self.first_kicker, bbox)
-                cosx = self.get_cosx(kicker1_2_kicker2_direction, tmp_direction)
-                if cosx is not None:
-                    pixel_dist = interaction.calc_distance_in_pixel((self.first_kicker.xcenter, self.first_kicker.ycenter), (bbox.xcenter, bbox.ycenter))
-                    tmp_score = cosx * (1 / math.exp(0.1 * pixel_dist))
-                    if tmp_score > front_measure_score:
-                        front_measure_score = tmp_score
-                        front_player = bbox
-            if front_player is not None:
-                # 3. 计算是否在三角形内部
-                kicker_12_direction = kicker1_2_kicker2_direction
-                kicker_21_direction = self.get_direction(self.second_kicker, kicker)
-                kicker_11_direction = self.get_direction(kicker, self.first_kicker)
+            _, enemy_surroundings = self.get_surroundings(self.first_kicker, kicker1_frame_record)
+            front_player = self.get_front_player(kicker1_kicker2_direction, enemy_surroundings)
+            ret = self.judge_point_positions(self.first_kicker, self.second_kicker, kicker, front_player)
+            if ret:
+                self.tactic_list.append(Tactic21(self.first_kicker_frame_id, self.window_cur_index - 1, self.second_kicker_frame_id, constant.TACTIC_21, self.first_kicker.oid, self.second_kicker.oid, front_player.oid))
+                # print(self.first_kicker.oid, self.second_kicker.oid, front_player.oid, self.first_kicker_frame_id, self.window_cur_index)
 
-                kicker_1front_direction = self.get_direction(self.first_kicker, front_player)
-                kicker_2front_direction = self.get_direction(self.second_kicker, front_player)
-                kicker_3front_direction = self.get_direction(kicker, front_player)
-
-                v1 = self.get_cross_product(kicker_12_direction, kicker_1front_direction)
-                v2 = self.get_cross_product(kicker_21_direction, kicker_2front_direction)
-                v3 = self.get_cross_product(kicker_11_direction, kicker_3front_direction)
-                
-                # 因为计算外积时使用的是右手螺旋定理所以应该所有值小于0才能说明是在三角形包围的内部
-                if v1 <= 0 and v2 <= 0 and v3 <= 0:
-                    self.tactic_list.append(Tactic21(self.first_kicker_frame_id, self.window_cur_index - 1, self.second_kicker_frame_id, constant.TACTIC_21, self.first_kicker.oid, self.second_kicker.oid, front_player.oid))
-                    self.next_frame_id = self.window_cur_index
+            self.next_frame_id = self.window_cur_index
             return TacticFSM.SEEK_FIRST_STAGET_KICKER
 
         else:
             # 继续搜索
             return TacticFSM.SEEK_THIRD_STAGET_KICKER
+
+    def get_front_player(self, kickers_direction, surroundings):
+        """
+        根据阵型计算此时的对方球员
+        """
+        front_player = None
+        front_measure_score = 0
+        for bbox in surroundings:
+            # 计算kicker1和kicker2传递球的路线中最靠近的那个点 即这个时候为运动过程中最可能的拦截球员
+            tmp_direction = self.get_direction(self.first_kicker, bbox)
+            cosx = self.get_cosx(kickers_direction, tmp_direction)
+            if cosx is not None:
+                pixel_dist = interaction.calc_distance_in_pixel((self.first_kicker.xcenter, self.first_kicker.ycenter), (bbox.xcenter, bbox.ycenter))
+                tmp_score = cosx * (1 / math.exp(0.1 * pixel_dist))
+                if tmp_score > front_measure_score:
+                    front_measure_score = tmp_score
+                    front_player = bbox
+        return front_player
+
+    def judge_point_positions(self, first_kicker, second_kicker, third_kicker, front_player):
+        """
+        判断点是否在三角形内部
+        """
+        if front_player is None:
+            return False
+
+        kicker_12_direction = self.get_direction(first_kicker, second_kicker)
+        kicker_21_direction = self.get_direction(second_kicker, third_kicker)
+        kicker_11_direction = self.get_direction(third_kicker, first_kicker)
+
+        kicker_1front_direction = self.get_direction(first_kicker, front_player)
+        kicker_2front_direction = self.get_direction(second_kicker, front_player)
+        kicker_3front_direction = self.get_direction(third_kicker, front_player)
+
+        v1 = self.get_cross_product(kicker_12_direction, kicker_1front_direction)
+        v2 = self.get_cross_product(kicker_21_direction, kicker_2front_direction)
+        v3 = self.get_cross_product(kicker_11_direction, kicker_3front_direction)
+
+        # print("k12", v1)
+        # print("k21", v2)
+        # print("k11", v3)
+
+        # 因为计算外积时使用的是右手螺旋定理所以应该所有值小于0才能说明是在三角形包围的内部
+        # 理论上是不能等于0的但是由于摄像机镜头的移动导致的误差 当大于0的时候反而能将一些战术给检测出来???
+        return (v1 <= 0 and v2 <= 0 and v3 <= 0) or (v1 > 0 and v2 > 0 and v3 > 0)
 
     def get_distance(self, bboxa, bboxb):
         """

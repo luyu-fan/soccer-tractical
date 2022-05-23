@@ -817,7 +817,7 @@ class Video:
         绘制一帧画面的核心函数，主要用来完成一帧画面绘制时的各个流程
         """
         # 超过绘制边界
-        if self.cur_frame_num not in self.labels_dict.keys() or self.cur_frame_num >= self.end_frame_num:
+        if self.cur_frame_num not in self.labels_dict or self.cur_frame_num >= self.end_frame_num:
             return None
 
         frame = self.__load_frame()
@@ -1022,16 +1022,16 @@ class Video:
             if tactic.tactic_type == constant.TACTIC_21:
                 seg = self.copy_self()
                 seg.tactic_type = constant.TACTIC_21
-                seg.cur_frame_num = tactic.start_frame_num
-                seg.start_frame_num = tactic.start_frame_num
-                seg.end_frame_num = tactic.end_frame_num
+                seg.cur_frame_num = max([0, tactic.start_frame_num - 2])
+                seg.start_frame_num = max([0, tactic.start_frame_num - 2])
+                seg.end_frame_num = tactic.end_frame_num + 2
                 video_tactics_segs[0].append(seg)
             if tactic.tactic_type == constant.TACTIC_32:
                 seg = self.copy_self()
                 seg.tactic_type = constant.TACTIC_32
-                seg.cur_frame_num = tactic.start_frame_num
-                seg.start_frame_num = tactic.start_frame_num
-                seg.end_frame_num = tactic.end_frame_num
+                seg.cur_frame_num = max([0, tactic.start_frame_num - 2])
+                seg.start_frame_num = max([0, tactic.start_frame_num - 2])
+                seg.end_frame_num = tactic.end_frame_num + 2
                 video_tactics_segs[1].append(seg)
         self.cur_frame_num = 1
         # 添加
