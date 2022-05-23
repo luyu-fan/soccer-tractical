@@ -245,7 +245,6 @@ class Video:
             frame_result = []
             ball_result = result["ball"]
             for bbox, oid in zip(ball_result[0], ball_result[1]):
-                print(bbox)
                 x1y1wh_box = ["Ball", oid, int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
                 frame_result.append(x1y1wh_box)
                 # cv2.rectangle(frame, (x1y1wh_box[2], x1y1wh_box[3]), (x1y1wh_box[2] + x1y1wh_box[4], x1y1wh_box[3] + x1y1wh_box[5]), color=(12,45,240), thickness=2)

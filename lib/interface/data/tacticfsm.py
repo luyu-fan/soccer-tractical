@@ -2,6 +2,7 @@
 简单战术识别有限状态机
 """
 import math
+from lib.constant import constant
 
 from lib.interaction import interaction
 
@@ -61,7 +62,10 @@ class TacticFSM:
         self.second_kicker = None
         self.second_kicker_frame_id = None
 
-        self.seek_window_size = 60
+        self.window_base_index = None
+        self.window_cur_index = None
+
+        self.seek_window_size = 100
         self.surroundings_max_thres = 300
 
         self.tactic_list = []    # 记录找到的所有战术对象
@@ -124,8 +128,8 @@ class TacticFSM:
         # TODO 休整和融合得到的所有结果
         return self.tactic_list
 
-    def seek_kicker(self): 
-        frame_record = self.load_frame_data()
+    def seek_kicker(self, index = None): 
+        frame_record = self.load_frame_data(index)
         kicker = frame_record["kicker"] if frame_record is not None else None
         return kicker
 
@@ -133,78 +137,78 @@ class TacticFSM:
         """
         搜索找到首个踢球者
         """
+        self.first_kicker = None
+        self.first_kicker_frame_id = None
         kicker = None
-        while kicker is None and self.next_frame_id in self.labels_dict.keys():
-            kicker = self.seek_kicker()
+        while kicker is None and self.next_frame_id in self.labels_dict:
+            kicker = self.seek_kicker(self.next_frame_id)
             self.next_frame_id += 1
         if kicker is not None:
             self.first_kicker = kicker
             self.first_kicker_frame_id = self.next_frame_id - 1
+            self.window_cur_index = self.next_frame_id
             return TacticFSM.SEEK_SECOND_STAGET_KICKER
         else:
             self.first_kicker = None
             self.first_kicker_frame_id = None
             return TacticFSM.EXIT
+
         
     def seek_second_kicker(self):
         """
         找到第一个踢球者之后去搜索第二个踢球者
         """
         kicker = None
-        seek_offset = 0
-        while kicker is None and self.next_frame_id in self.labels_dict.keys() and seek_offset < self.seek_window_size:
-            kicker = self.seek_kicker()
-            self.next_frame_id += 1
-            seek_offset += 1
+        while kicker is None:
+            if self.window_cur_index in self.labels_dict and (self.window_cur_index - self.first_kicker_frame_id) < self.seek_window_size:
+                kicker = self.seek_kicker(self.window_cur_index)
+                self.window_cur_index += 1
+            else:
+                break
 
         if kicker is None:  
             # 窗口内没有找到新的踢球者只能从第一个踢球者重新搜索
-            self.first_kicker = None
-            self.first_kicker_frame_id = None
             return TacticFSM.SEEK_FIRST_STAGET_KICKER
-        elif kicker.oid == self.first_kicker.oid:
+        elif kicker.oid == self.first_kicker.oid and kicker.cls == self.first_kicker.cls:
             # 说明第一个kicker踢球的时间比较长一直在占有球可以适当往后挪一下位置继续搜索即可
-            if self.next_frame_id - self.first_kicker_frame_id >= self.seek_window_size // 2:
+            if self.window_cur_index - self.first_kicker_frame_id >= self.seek_window_size // 2:
                 self.first_kicker = kicker
-                self.first_kicker_frame_id = self.next_frame_id - 1
+                self.first_kicker_frame_id = self.window_cur_index - 1
             return TacticFSM.SEEK_SECOND_STAGET_KICKER
         else:
-            # 如果找到了不相同的kicker则需要判断他们是否同属于同一个阵营
-            if kicker.cls == self.first_kicker.cls:
+            # 先采用O(kn)的时间复杂度完成搜索
+            if (kicker.cls == self.first_kicker.cls) and (kicker.oid != self.first_kicker.oid) and self.get_distance(self.first_kicker, kicker) >= 50:
                 # 同一个阵营内则直接将其作为第二个kicker
                 # TODO 对于那些不一定非要有回传的情况是否能够判断出来情况更复杂 
                 # 那些球场上的边角几乎无法判断 现在的算法只能假设是必须有回传的情况
+                # print("first:",self.first_kicker.oid, "second:", kicker.oid, self.next_frame_id, self.first_kicker, self.window_cur_index)
                 self.second_kicker = kicker
-                self.second_kicker_frame_id = self.next_frame_id - 1
+                self.second_kicker_frame_id = self.window_cur_index - 1
                 return TacticFSM.SEEK_THIRD_STAGET_KICKER
             else:
-                # 不是同一个阵营内则将其更新作为第一个kicker
-                self.first_kicker = kicker
-                self.first_kicker_frame_id = self.next_frame_id - 1
+                # 其余的任何条件都不管继续搜索第二个kicker
                 return TacticFSM.SEEK_SECOND_STAGET_KICKER
+
 
     def seek_third_kicker(self):
         """
         搜索第三个kicker
         """
         kicker = None
-        seek_offset = 0
-        while kicker is None and self.next_frame_id in self.labels_dict.keys() and seek_offset < self.seek_window_size:
-            kicker = self.seek_kicker()
-            self.next_frame_id += 1
-            seek_offset += 1
+        while kicker is None and self.window_cur_index in self.labels_dict and (self.window_cur_index - self.second_kicker_frame_id) < self.seek_window_size:
+            kicker = self.seek_kicker(self.window_cur_index)
+            self.window_cur_index += 1
 
         if kicker is None:  
             # 窗口内没有找到新的踢球者只能从第一个踢球者重新搜索
-            self.first_kicker = None
-            self.first_kicker_frame_id = None
             return TacticFSM.SEEK_FIRST_STAGET_KICKER
-        elif kicker.oid == self.first_kicker.oid:
+        elif kicker.oid == self.first_kicker.oid and kicker.cls == self.first_kicker.cls:
             # 如果第一个kicker重新出现说明可能已经完成了一个战术动作然后再做进一步判断
             # 判断是否的确越过了某个目标
             # 即判断由第一次kicker 和第二次kicker 以及第三次kicker组成的三个向量 最终是否包围了对方潜在的目标即可
             # 对方的目标是以第一次或者第二次kicker找到的最近的目标
             # 1. 获取kicker2对应的一个记录情况
+            
             kicker2_frame_record = self.load_frame_data(self.second_kicker_frame_id)
             kicker1_2_kicker2_direction = self.get_direction(self.first_kicker, self.second_kicker)
 
@@ -238,27 +242,20 @@ class TacticFSM:
                 v3 = self.get_cross_product(kicker_11_direction, kicker_3front_direction)
                 
                 # 因为计算外积时使用的是右手螺旋定理所以应该所有值小于0才能说明是在三角形包围的内部
-                if v1 < 0 and v2 < 0 and v3 < 0:
-                    self.tactic_list.append(Tactic21(self.first_kicker_frame_id, self.next_frame_id - 1, self.second_kicker_frame_id, "2-1", self.first_kicker.oid, self.second_kicker.oid, front_player.oid))
+                if v1 <= 0 and v2 <= 0 and v3 <= 0:
+                    self.tactic_list.append(Tactic21(self.first_kicker_frame_id, self.window_cur_index - 1, self.second_kicker_frame_id, constant.TACTIC_21, self.first_kicker.oid, self.second_kicker.oid, front_player.oid))
+                    self.next_frame_id = self.window_cur_index
             return TacticFSM.SEEK_FIRST_STAGET_KICKER
 
-        elif kicker.oid == self.second_kicker.oid:
+        else:
             # 继续搜索
             return TacticFSM.SEEK_THIRD_STAGET_KICKER
-        else:
-            # 如果找到了不相同的kicker则需要判断他们是否同属于同一个阵营
-            if kicker.cls == self.first_kicker.cls:
-                # 同一个阵营内则更新前两个kicker使其继续搜索
-                self.first_kicker = self.second_kicker
-                self.first_kicker_frame_id = self.second_kicker_frame_id
-                self.second_kicker = kicker
-                self.second_kicker_frame_id = self.next_frame_id - 1
-                return TacticFSM.SEEK_THIRD_STAGET_KICKER
-            else:
-                # 不是同一个阵营内则将其更新作为第一个kicker
-                self.first_kicker = kicker
-                self.first_kicker_frame_id = self.next_frame_id - 1
-                return TacticFSM.SEEK_SECOND_STAGET_KICKER
+
+    def get_distance(self, bboxa, bboxb):
+        """
+        计算目标间的像素距离
+        """
+        return interaction.calc_distance_in_pixel((bboxa.xcenter, bboxa.ycenter), (bboxb.xcenter, bboxb.ycenter))
 
     def get_cross_product(self, directiona, directionb):
         """
