@@ -7,12 +7,13 @@ import threading
 import cv2
 
 from PIL import Image
+from numpy import deprecate
 from sklearn.cluster import KMeans
 
 from lib.constant import constant
 from lib.dataprocess import check_exists
 from lib.dataprocess import prepare
-from lib.interface.data.tacticfsm import TacticFSM
+from lib.interface.data.tacticfsm import Tactic21FSM, Tactic32FSM
 from lib.render import render
 from lib.interaction import interaction
 from lib.utils import team_shape
@@ -97,7 +98,8 @@ class Video:
         self.cur_frame_num = 1
         
         # TacticFSM
-        self.tactic_fsm = TacticFSM()
+        self.tactic21_fsm = Tactic21FSM()
+        self.tactic32_fsm = Tactic32FSM()
 
         # 在战术绘制时不合法的帧(过短导致)
         self.illegal_tactics_frames = set([])
@@ -759,7 +761,6 @@ class Video:
         if self.cur_frame_num not in self.tactics_map:
             return frame
         tactic = self.tactics_map[self.cur_frame_num]
-        
         if tactic.tactic_type == constant.TACTIC_21:
             frame = self.render_21(frame, tactic)
         else:
@@ -804,9 +805,98 @@ class Video:
         tactic,
     ):
         """
-        绘制3-2战术
+        渲染3-2战术
+        分为多个阶段渲染
         """
-        ... # TODO
+        # frame_record = self.__load_frame_data()
+        # kicker1 = None
+        # kicker2 = None
+        # front_enmey = None
+        # for bbox in frame_record["bbox"]:
+        #     if bbox.cls not in ["A", "B"]:
+        #         continue
+        #     if bbox.oid == tactic.kicker1_oid:
+        #         kicker1 = bbox
+        #     if bbox.oid ==  tactic.kicker2_oid:
+        #         kicker2 = bbox
+        #     if bbox.oid == tactic.front_oid:
+        #         front_enmey = bbox
+        
+        # # 渲染线条
+        # if kicker1 is not None and kicker2 is not None:
+        #     frame = render.renderTacticWithArrow_batch(frame, [kicker1, kicker2], color = (180,66,48))
+        # if front_enmey is not None:
+        #     frame = render.renderTacticWithArrow_batch(frame, [front_enmey], color = (20,20,160))
+        # if kicker1 is not None and front_enmey is not None:
+        #     frame = render.renderTacticWithArrow_batch(frame, [kicker1, front_enmey], color = (0,160,160))
+
+        # return frame
+        frame_record = self.__load_frame_data()
+        if self.cur_frame_num <= tactic.third_kicker_frame_id:
+            # 绘制刚开始的2-1传球部分
+            kicker1 = None
+            kicker2 = None
+            front_enmey = None
+            for bbox in frame_record["bbox"]:
+                if bbox.cls not in ["A", "B"]:
+                    continue
+                if bbox.oid == tactic.first_kicker.oid:
+                    kicker1 = bbox
+                if bbox.oid ==  tactic.second_kicker.oid:
+                    kicker2 = bbox
+                if bbox.oid == tactic.first_front.oid:
+                    front_enmey = bbox
+            if kicker1 is not None and kicker2 is not None:
+                frame = render.renderTacticWithArrow_batch(frame, [kicker1, kicker2], color = (180,66,48))
+            if front_enmey is not None:
+                frame = render.renderTacticWithArrow_batch(frame, [front_enmey], color = (20,20,160))
+            if kicker1 is not None and front_enmey is not None:
+                frame = render.renderTacticWithArrow_batch(frame, [kicker1, front_enmey], color = (0,160,160))
+        
+        elif self.cur_frame_num < tactic.second_front_frame_id:
+            # 绘制由第一个二过一部分往后的传递过渡部分
+            kicker1 = None
+            kicker2 = None
+            for bbox in frame_record["bbox"]:
+                if bbox.cls not in ["A", "B"]:
+                    continue
+                if bbox.oid == tactic.third_kicker.oid:
+                    kicker1 = bbox
+                if bbox.oid ==  tactic.remain_kickers[0][0].oid:
+                    kicker2 = bbox
+            if kicker1 is not None and kicker2 is not None:
+                frame = render.renderTacticWithArrow_batch(frame, [kicker1, kicker2], color = (180,66,48))
+        else:
+            # 绘制后续传递情况
+            indexes = list(range(len(tactic.remain_kickers)))[1:]
+            
+            index = 1
+            for i in indexes:
+                if self.cur_frame_num <= tactic.remain_kickers[i][1]:
+                    index = i
+                    break
+
+            target_kicker1 = tactic.remain_kickers[index - 1][0]
+            target_kicker2 = tactic.remain_kickers[index][0]
+            
+            kicker1 = None
+            kicker2 = None
+            front_enmey = None
+            for bbox in frame_record["bbox"]:
+                if bbox.cls not in ["A", "B"] or tactic.second_front is None:
+                    continue
+                if bbox.oid == target_kicker1.oid:
+                    kicker1 = bbox
+                if bbox.oid == target_kicker2.oid:
+                    kicker2 = bbox
+                if bbox.oid == tactic.second_front.oid:
+                    front_enmey = bbox
+            if kicker1 is not None and kicker2 is not None:
+                frame = render.renderTacticWithArrow_batch(frame, [kicker1, kicker2], color = (180,66,48))
+            if front_enmey is not None:
+                frame = render.renderTacticWithArrow_batch(frame, [front_enmey], color = (20,20,160))
+            if kicker1 is not None and front_enmey is not None:
+                frame = render.renderTacticWithArrow_batch(frame, [kicker1, front_enmey], color = (0,160,160))
         return frame
 
     def get_one_rendered_frame(
@@ -879,6 +969,7 @@ class Video:
         self.log(Video.INFO, "Frame " + str(self.cur_frame_num) + " finished.")
         return frame
 
+    @deprecate
     def extract_tactics_segments(self):
         """
         根据标签数据在初始化的过程中找出所有的战术片段 帧号区间
@@ -1010,30 +1101,39 @@ class Video:
         利用FSM抽取2-1或者3-2战术
         """
         # TODO copy
-        self.tactic_fsm.config(self.labels_dict)
-        tactics_list = self.tactic_fsm.run()
+        self.tactic21_fsm.config(self.labels_dict)
+        tactics21_list = self.tactic21_fsm.run()
+        self.cur_frame_num = 1
+        self.tactic32_fsm.config(self.labels_dict)
+        tactics32_list = self.tactic32_fsm.run()
+        self.cur_frame_num = 1
+
         # fast cache
         self.tactics_map = {}
         video_tactics_segs = [[],[]]
-        for tactic in tactics_list:
+        for tactic in tactics21_list:
             for i in range(tactic.start_frame_num, tactic.end_frame_num + 1):
-                self.tactics_map[i] = tactic 
-        for tactic in tactics_list:
-            if tactic.tactic_type == constant.TACTIC_21:
-                seg = self.copy_self()
-                seg.tactic_type = constant.TACTIC_21
-                seg.cur_frame_num = max([0, tactic.start_frame_num - 2])
-                seg.start_frame_num = max([0, tactic.start_frame_num - 2])
-                seg.end_frame_num = tactic.end_frame_num + 2
-                video_tactics_segs[0].append(seg)
-            if tactic.tactic_type == constant.TACTIC_32:
-                seg = self.copy_self()
-                seg.tactic_type = constant.TACTIC_32
-                seg.cur_frame_num = max([0, tactic.start_frame_num - 2])
-                seg.start_frame_num = max([0, tactic.start_frame_num - 2])
-                seg.end_frame_num = tactic.end_frame_num + 2
-                video_tactics_segs[1].append(seg)
-        self.cur_frame_num = 1
+                self.tactics_map[i] = tactic
+        for tactic in tactics32_list:
+            for i in range(tactic.start_frame_num, tactic.end_frame_num + 1):
+                self.tactics_map[i] = tactic
+        
+        for tactic in tactics21_list:
+            seg = self.copy_self()
+            seg.tactic_type = constant.TACTIC_21
+            seg.cur_frame_num = max([1, tactic.start_frame_num - 2])
+            seg.start_frame_num = max([1, tactic.start_frame_num - 2])
+            seg.end_frame_num = tactic.end_frame_num + 2
+            video_tactics_segs[0].append(seg)
+
+        for tactic in tactics32_list:
+            seg = self.copy_self()
+            seg.tactic_type = constant.TACTIC_32
+            seg.cur_frame_num = max([1, tactic.start_frame_num - 2])
+            seg.start_frame_num = max([1, tactic.start_frame_num - 2])
+            seg.end_frame_num = tactic.end_frame_num + 2
+            video_tactics_segs[1].append(seg)
+        
         # 添加
         datahub.DataHub.add_tactics(self.name, video_tactics_segs)
         
