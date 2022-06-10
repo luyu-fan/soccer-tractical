@@ -35,4 +35,6 @@ SHALLOW_BTN_BACKGROUND_NAME = "Shallow.TButton"
 WEL_ENTER_BTN = "Whilte.TButton"
 
 # 程序存放视频已经中间处理数据的绝对路径
-DATA_ROOT = r"C:\Users\luyu-fan\Desktop\mdp\main-code\fake-tractical\datasets"
+DATA_ROOT = ""
+DATA_ROOT=r'/Users/wilo/Desktop/workspace/fake-tractical/datasets'
+DATA_ROOT=r'/Users/wilo/Desktop/workspace/fake-tractical/datasets'
